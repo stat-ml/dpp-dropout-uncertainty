@@ -83,8 +83,6 @@ def main():
                     estimator.reset()
                     model_types.append(name)
                     accuracies.append(learner.recorder.metrics[-1][0].item())
-    #
-
     try:
         plt.figure(figsize=(12, 8))
         plt.title(f"NDCG on different train samples")
@@ -108,7 +106,6 @@ def main():
     except Exception as e:
         print(e)
         import ipdb; ipdb.set_trace()
-
 
 
 def load_data():
