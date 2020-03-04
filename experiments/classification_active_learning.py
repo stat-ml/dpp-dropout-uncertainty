@@ -1,5 +1,6 @@
-import sys
 from functools import partial
+from copy import deepcopy
+from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,17 +13,18 @@ import torch
 from fastai.vision import (rand_pad, flip_lr, ImageDataBunch, Learner, accuracy)
 from fastai.callbacks import EarlyStoppingCallback
 
-sys.path.append('..')
-from model.cnn import AnotherConv, SimpleConv
-from model.resnet import resnet_masked
-from dataloader.builder import build_dataset
-from uncertainty_estimator.masks import DEFAULT_MASKS
-from experiments.utils import ImageArrayDS
-from active_learning.simple_update import update_set
-from experiments.experiment_setup import ROOT_DIR
-from pathlib import Path
+from alpaca.model.cnn import AnotherConv, SimpleConv
+from alpaca.model.resnet import resnet_masked
+from alpaca.dataloader.builder import build_dataset
+from alpaca.uncertainty_estimator.masks import DEFAULT_MASKS
+from alpaca.active_learning.simple_update import update_set
+from utils.fastai import ImageArrayDS
 
-torch.cuda.set_device(1)
+if torch.cuda.is_available():
+    torch.cuda.set_device(1)
+    device = 'cuda'
+else:
+    device = 'cpu'
 
 
 def prepare_cifar(config):
@@ -37,6 +39,39 @@ def prepare_cifar(config):
     train_tfms = [*rand_pad(4, 32), flip_lr(p=0.5)]  # Transformation to augment images
 
     return x_set, y_set, x_val, y_val, train_tfms
+
+
+def prepare_mnist(config):
+    dataset = build_dataset('mnist', val_size=config['val_size'])
+    x_set, y_set = dataset.dataset('train')
+    x_val, y_val = dataset.dataset('val')
+
+    shape = (-1, 1, 28, 28)
+    x_set = ((x_set - 128) / 128).reshape(shape)
+    x_val = ((x_val - 128) / 128).reshape(shape)
+
+    train_tfms = []
+
+    return x_set, y_set, x_val, y_val, train_tfms
+
+
+def prepare_svhn(config):
+    dataset = build_dataset('svhn', val_size=config['val_size'])
+    x_set, y_set = dataset.dataset('train')
+    x_val, y_val = dataset.dataset('val')
+    y_set[y_set == 10] = 0
+    y_val[y_val == 10] = 0
+
+    shape = (-1, 32, 32, 3)
+    x_set = ((x_set - 128) / 128).reshape(shape)
+    x_val = ((x_val - 128) / 128).reshape(shape)
+    x_set = np.rollaxis(x_set, 3, 1)
+    x_val = np.rollaxis(x_val, 3, 1)
+
+    train_tfms = [*rand_pad(4, 32), flip_lr(p=0.5)]  # Transformation to augment images
+
+    return x_set, y_set, x_val, y_val, train_tfms
+
 
 
 cifar_config = {
@@ -58,18 +93,21 @@ cifar_config = {
     'name': 'cifar'
 }
 
-experiment = 3
+svhn_config = deepcopy(cifar_config)
+svhn_config.update({
+    'prepare_dataset': prepare_svhn,
+    'name': 'svhn'
+})
 
-if experiment == 2:
-    cifar_config['pool_size'] = 5000
-    cifar_config['start_size'] = 2000
-    cifar_config['step_size'] = 20
-    cifar_config['model'] = 'conv'
-elif experiment == 3:
-    cifar_config['pool_size'] = 20_000
-    cifar_config['start_size'] = 10_000
-    cifar_config['step_size'] = 100
-    cifar_config['model'] = 'resent'
+mnist_config = deepcopy(cifar_config)
+mnist_config.update({
+    'start_size': 100,
+    'step_size': 20,
+    'model_type': 'simple_conv',
+    'prepare_dataset': prepare_mnist,
+    'batch_size': 32,
+    'name': 'mnist'
+})
 
 
 def main(config):
@@ -141,7 +179,7 @@ def plot_metric(metrics, config, title=None):
     # plt.legend(loc='upper left')
 
     filename = f"{config['name']}_{config['model_type']}_{config['start_size']}_{config['step_size']}"
-    file = Path(ROOT_DIR) / 'experiments' / 'data' / 'al' / filename
+    file = Path('data') / 'al' / filename
     plt.savefig(file)
     df.to_csv(filename + '.csv')
     plt.show()
