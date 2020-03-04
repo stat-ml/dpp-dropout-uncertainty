@@ -3,19 +3,15 @@ sys.path.append('..')
 
 import torch
 import torch.nn.functional as F
-from sklearn.model_selection import train_test_split
 import numpy as np
 import matplotlib.pyplot as plt
 
-from fastai.vision import rand_pad, flip_lr, ImageDataBunch, accuracy, create_cnn_model
-from fastai.vision import models
+from fastai.vision import rand_pad, flip_lr, ImageDataBunch, accuracy
 from dppy.finite_dpps import FiniteDPP
 
 from model.cnn import AnotherConv
 from dataloader.builder import build_dataset
-from uncertainty_estimator.bald import Bald, BaldMasked
-from uncertainty_estimator.masks import build_masks, build_mask, DEFAULT_MASKS
-from utils import ImageArrayDS, Inferencer
+from experiments.utils import ImageArrayDS, Inferencer
 
 # == Place to develop, experiment and debug new methods of active learning == #
 

@@ -1,8 +1,7 @@
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from experiment_setup import ROOT_DIR
+from experiments.experiment_setup import ROOT_DIR
 from pathlib import Path
 import matplotlib
 

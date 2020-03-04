@@ -17,9 +17,9 @@ from model.cnn import AnotherConv, SimpleConv
 from model.resnet import resnet_masked
 from dataloader.builder import build_dataset
 from uncertainty_estimator.masks import DEFAULT_MASKS
-from utils import ImageArrayDS
+from experiments.utils import ImageArrayDS
 from active_learning.simple_update import update_set
-from experiment_setup import ROOT_DIR
+from experiments.experiment_setup import ROOT_DIR
 from pathlib import Path
 
 torch.cuda.set_device(1)

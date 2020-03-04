@@ -11,11 +11,11 @@ from fastai.callbacks import EarlyStoppingCallback
 
 
 from dataloader.builder import build_dataset
-from utils import ImageArrayDS, Inferencer
+from experiments.utils import ImageArrayDS, Inferencer
 from model.cnn import AnotherConv
 from model.resnet import resnet_linear, resnet_masked
-from experiment_setup import build_estimator
-from uncertainty_estimator.masks import build_mask, build_masks, DEFAULT_MASKS
+from experiments.experiment_setup import build_estimator
+from uncertainty_estimator.masks import build_masks, DEFAULT_MASKS
 from analysis.metrics import uq_ndcg
 
 
