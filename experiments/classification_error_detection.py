@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from fastai.vision import (ImageDataBunch, Learner, accuracy)
 from fastai.callbacks import EarlyStoppingCallback
 
-from alpaca.uncertainty_estimator.masks import DEFAULT_MASKS, build_mask
+from alpaca.uncertainty_estimator.masks import DEFAULT_MASKS
 from alpaca.uncertainty_estimator import build_estimator
 from alpaca.active_learning.simple_update import entropy
 
@@ -32,10 +32,18 @@ else:
 label = 'detector'
 
 
+"""
+Experiment to detect errors by uncertainty estimation quantification
+It provided on MNIST, CIFAR and SVHN datasets (see config below)
+We boxplot ROC-AUC figure on multiple runs
+"""
+
+
 def benchmark_uncertainty(config):
     results = []
     plt.figure(figsize=(10, 8))
     for i in range(config['repeats']):
+        # Load data
         x_set, y_set, x_val, y_val, train_tfms = config['prepare_dataset'](config)
 
         if len(x_set) > config['train_size']:
@@ -48,6 +56,7 @@ def benchmark_uncertainty(config):
         val_ds = ImageArrayDS(x_val, y_val)
         data = ImageDataBunch.create(train_ds, val_ds, bs=config['batch_size'])
 
+        # Train model
         loss_func = torch.nn.CrossEntropyLoss()
         np.set_printoptions(threshold=sys.maxsize, suppress=True)
 
@@ -56,8 +65,8 @@ def benchmark_uncertainty(config):
         learner = Learner(data, model, metrics=accuracy, loss_func=loss_func, callback_fns=callbacks)
         learner.fit(config['epochs'], config['start_lr'], wd=config['weight_decay'])
 
+        # Evaluate different estimators
         images = torch.FloatTensor(x_val).to(device)
-
         probabilities = F.softmax(model(images), dim=1).detach().cpu().numpy()
         predictions = np.argmax(probabilities, axis=-1)
 
@@ -75,7 +84,8 @@ def benchmark_uncertainty(config):
                 plt.xlabel('FPR')
                 plt.ylabel('TPR')
 
-    dir = Path('data') / 'ood'
+    # Plot the results and generate figures
+    dir = Path('data') / 'detector'
     plt.title(f"{config['name']} uncertainty ROC")
     plt.legend()
     file = f"var_{label}_roc_{config['name']}_{config['train_size']}_{config['nn_runs']}"
@@ -100,7 +110,7 @@ def benchmark_uncertainty(config):
 
     file = f"var_{label}_boxplot_{config['name']}_{config['train_size']}_{config['nn_runs']}"
     plt.savefig(dir / file)
-    df.to_csv(dir / file + '.csv')
+    df.to_csv(dir / (file + '.csv'))
 
 
 def calc_ue(model, images, probabilities, estimator_type='max_prob', nn_runs=100):
@@ -109,8 +119,7 @@ def calc_ue(model, images, probabilities, estimator_type='max_prob', nn_runs=100
     elif estimator_type == 'max_entropy':
         ue = entropy(probabilities)
     else:
-        mask = build_mask(estimator_type)
-        estimator = build_estimator('bald_masked', model, dropout_mask=mask, num_classes=10, nn_runs=nn_runs)
+        estimator = build_estimator('bald_masked', model, dropout_mask=estimator_type, num_classes=10, nn_runs=nn_runs)
         ue = estimator.estimate(images)
         print(ue[:10])
     return ue
@@ -137,8 +146,6 @@ config_cifar = deepcopy(config_mnist)
 config_cifar.update({
     'train_size': 50_000,
     'val_size': 10_000,
-    # 'repeats': 1,
-    # 'estimators': ['basic_bern'],
     'model_type': 'resnet',
     'name': 'CIFAR-10',
     'prepare_dataset': prepare_cifar
@@ -153,12 +160,10 @@ config_svhn.update({
     'prepare_dataset': prepare_svhn
 })
 
-# configs = [config_cifar, config_mnist, config_svhn]
-config_mnist['epochs'] = 1
-config_mnist['repeats'] = 1
-config_mnist['estimators'] = ['mc_dropout']
-
-configs = [config_mnist]
+configs = [config_cifar, config_mnist, config_svhn]
+# config_mnist['epochs'] = 1
+# config_mnist['repeats'] = 1
+# config_mnist['estimators'] = ['mc_dropout']
 
 
 if __name__ == '__main__':
