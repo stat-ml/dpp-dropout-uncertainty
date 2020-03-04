@@ -1,4 +1,6 @@
 *.csv
+*.png
+*.pkl
 !.gitignore
 !al/.gitkeep
 !xor/.gitkeep

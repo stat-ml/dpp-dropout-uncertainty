@@ -1,0 +1,3 @@
+pandas>=0.25.1
+seaborn>=0.9.0
+alpaca-ml==0.0.1
