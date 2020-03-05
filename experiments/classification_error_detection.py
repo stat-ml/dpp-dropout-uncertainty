@@ -22,14 +22,13 @@ from alpaca.active_learning.simple_update import entropy
 
 from utils.fastai import ImageArrayDS
 from classification_active_learning import build_model, prepare_cifar, prepare_mnist, prepare_svhn
-from experiment_setup import set_random
 
 
-if torch.cuda.is_available():
-    torch.cuda.set_device(1)
-    device = 'cuda'
-else:
-    device = 'cpu'
+"""
+Experiment to detect errors by uncertainty estimation quantification
+It provided on MNIST, CIFAR and SVHN datasets (see config below)
+We resport results as a boxplot ROC-AUC figure on multiple runs
+"""
 
 label = 'detector'
 
@@ -38,11 +37,13 @@ torch.manual_seed(SEED)
 np.random.seed(SEED)
 random.seed(SEED)
 
-"""
-Experiment to detect errors by uncertainty estimation quantification
-It provided on MNIST, CIFAR and SVHN datasets (see config below)
-We boxplot ROC-AUC figure on multiple runs
-"""
+if torch.cuda.is_available():
+    torch.cuda.set_device(0)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    device = 'cuda'
+else:
+    device = 'cpu'
 
 
 def benchmark_uncertainty(config):
@@ -148,12 +149,12 @@ config_mnist = {
     'prepare_dataset': prepare_mnist,
 }
 
-# TODO: for debug, remove
-config_mnist.update({
-    'epochs': 2,
-    'estimators': ['decorrelating_sc', 'mc_dropout'],
-    'repeats': 1
-})
+# # TODO: for debug, remove
+# config_mnist.update({
+#     'epochs': 2,
+#     'estimators': ['decorrelating_sc', 'mc_dropout'],
+#     'repeats': 1
+# })
 
 config_cifar = deepcopy(config_mnist)
 config_cifar.update({
@@ -174,9 +175,6 @@ config_svhn.update({
 })
 
 configs = [config_mnist, config_cifar, config_svhn]
-# config_mnist['epochs'] = 1
-# config_mnist['repeats'] = 1
-# config_mnist['estimators'] = ['mc_dropout']
 
 
 if __name__ == '__main__':
