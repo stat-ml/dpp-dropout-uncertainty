@@ -32,6 +32,8 @@ python experiments/classification_ood_detection.py
 ```
 The script generates plots in `experiments/data/ood` folder
 
+![Error detection for CIFAR-10 dataset](figures/error_detector_cifar.png)
+
 #### Active Learning for computer vision
 [Active learning](https://en.wikipedia.org/wiki/Active_learning_(machine_learning) was run for computer vision tasks on MNIST/CIFAR/SVHN datasets. We report plot with error improvements on each step.
 ```
