@@ -109,7 +109,7 @@ def plot_metric(metrics, config, title=None):
     dir = Path(__file__).parent.absolute() / 'data' / 'al'
     file = dir / filename
     plt.savefig(file)
-    df.to_csv(filename + '.csv')
+    df.to_csv(dir / (filename + '.csv'))
     plt.show()
 
 

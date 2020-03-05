@@ -39,7 +39,7 @@ np.random.seed(SEED)
 random.seed(SEED)
 
 if torch.cuda.is_available():
-    torch.cuda.set_device(0)
+    torch.cuda.set_device(1)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     device = 'cuda'
