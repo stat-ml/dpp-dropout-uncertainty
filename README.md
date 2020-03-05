@@ -19,15 +19,15 @@ Series of experiments on few UCI datasets. We report performance for all experim
 #### Error detection benchmark
 Uncertainty estimation can be interpreted as an error detector. Thus we can treat it as prediction for binary task of correct/incorrect prediction. We run multiple times and report boxplots for ROC-AUC on MNIST/CIFAR/SVHN.
 ```
-python -m experiments.classification_error_detection
+python experiments/classification_error_detection.py
 ```
 #### OOD detection benchmark
 Uncertainty estimation can be interpreted as an out-of-distribution samples detector. Thus we can treat it as prediction for binary task of in-distribution/out-of-distribution detection. We use two pairs of datasets: MNIST/Fashion-MNIST and CIFAR/SVHH. We run multiple times and report boxplots for ROC-AUC
 ```
-python -m experiments.classification_ood_detection
+python experiments/classification_ood_detection.py
 ```
 #### Active Learning for computer vision
 [Active learning](https://en.wikipedia.org/wiki/Active_learning_(machine_learning)) was run for computer vision on MNIST/CIFAR/SVHN. We report plot with error improvements.
 ```
-python -m experiments.classification_active_learning
+python experiments/classification_active_learning.py
 ```
