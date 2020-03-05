@@ -52,6 +52,7 @@ def benchmark_ood(config):
     results = []
     plt.figure(figsize=(10, 8))
     for i in range(config['repeats']):
+        # Load data
         x_set, y_set, x_val, y_val, train_tfms = config['prepare_dataset'](config)
 
         if len(x_set) > config['train_size']:
@@ -66,6 +67,7 @@ def benchmark_ood(config):
         val_ds = ImageArrayDS(x_val, y_val)
         data = ImageDataBunch.create(train_ds, val_ds, bs=config['batch_size'])
 
+        # Train model
         loss_func = torch.nn.CrossEntropyLoss()
         np.set_printoptions(threshold=sys.maxsize, suppress=True)
 
@@ -74,6 +76,7 @@ def benchmark_ood(config):
         learner = Learner(data, model, metrics=accuracy, loss_func=loss_func, callback_fns=callbacks)
         learner.fit(config['epochs'], config['start_lr'], wd=config['weight_decay'])
 
+        # Get data for binary classification of OOD detector
         original_images = torch.FloatTensor(x_val)
         alt_images = torch.FloatTensor(x_alt)
         images = torch.cat((original_images, alt_images)).to(device)
@@ -81,6 +84,7 @@ def benchmark_ood(config):
 
         probabilities = F.softmax(model(images), dim=1).detach().cpu().numpy()
 
+        # Calculate uncertainty and generate ROC data for OOD detection
         for name in config['estimators']:
             ue = calc_ue(model, images, probabilities, name, config['nn_runs'])
 
@@ -94,6 +98,7 @@ def benchmark_ood(config):
                 plt.xlabel('FPR')
                 plt.ylabel('TPR')
 
+    # Plot the results and save figures
     dir = Path(__file__).parent.absolute() / 'data' / 'ood'
     plt.title(f"{config['name']} ood detection ROC")
     plt.legend()
