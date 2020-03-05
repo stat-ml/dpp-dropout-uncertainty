@@ -21,13 +21,14 @@ from alpaca.uncertainty_estimator import build_estimator
 from alpaca.active_learning.simple_update import entropy
 
 from utils.fastai import ImageArrayDS
-from classification_active_learning import build_model, prepare_cifar, prepare_mnist, prepare_svhn
+from classification_active_learning import build_model
+from utils.visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn
 
 
 """
 Experiment to detect errors by uncertainty estimation quantification
 It provided on MNIST, CIFAR and SVHN datasets (see config below)
-We resport results as a boxplot ROC-AUC figure on multiple runs
+We report results as a boxplot ROC-AUC figure on multiple runs
 """
 
 label = 'detector'

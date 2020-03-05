@@ -1,12 +1,15 @@
-from copy import deepcopy
 import sys
+import random
+from copy import deepcopy
 from functools import partial
+from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
 import seaborn as sns
 import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score, roc_curve
 
 import torch
 import torch.nn.functional as F
@@ -14,53 +17,35 @@ import torch.nn.functional as F
 from fastai.vision import (ImageDataBunch, Learner, accuracy)
 from fastai.callbacks import EarlyStoppingCallback
 
-sys.path.append('..')
-from uncertainty_estimator.masks import DEFAULT_MASKS
-from experiments.utils import ImageArrayDS
-from experiments.experiment_setup import ROOT_DIR
-from pathlib import Path
-from experiments.active_learning_mnist import prepare_mnist
-from active_learning import build_model, prepare_cifar
-from experiments.active_learning_svhn import prepare_svhn
-from sklearn.metrics import roc_auc_score, roc_curve
-from uncertainty_estimator.masks import build_mask
-from experiments.experiment_setup import build_estimator
-from active_learning.simple_update import entropy
-from experiments.utils import prepare_fashion_mnist
+from alpaca.uncertainty_estimator.masks import DEFAULT_MASKS
+from alpaca.uncertainty_estimator import build_estimator
+from alpaca.active_learning.simple_update import entropy
 
-torch.cuda.set_device(1)
+from utils.fastai import ImageArrayDS
+from utils.visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn, prepare_fashion_mnist
+from classification_active_learning import build_model
+
+
+"""
+Experiment to detect out-of-distribution samples (OOD) by uncertainty estimation quantification
+Results are provided on MNIST/Fashion-MNIST and CIFAR/SVHN pairs (see config below)
+We report results as a boxplot ROC-AUC figure for multiple runs
+"""
+
 label = 'ratio_3'
 
-config_mnist = {
-    'train_size': 50_000,
-    'val_size': 5_000,
-    'model_type': 'simple_conv',
-    'batch_size': 256,
-    'patience': 3,
-    'epochs': 50,
-    'start_lr': 1e-3,
-    'weight_decay': 0.1,
-    'reload': False,
-    'nn_runs': 150,
-    # 'estimators': ['max_prob', 'max_entropy', *DEFAULT_MASKS],
-    'estimators': DEFAULT_MASKS,
-    'repeats': 5,
-    'name': 'MNIST',
-    'prepare_dataset': prepare_mnist,
-    'alternative_dataset': prepare_fashion_mnist,
-}
+SEED = 42
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
 
-config_cifar = deepcopy(config_mnist)
-config_cifar.update({
-    'train_size': 50_000,
-    'val_size': 5_000,
-    'model_type': 'resnet',
-    'name': 'CIFAR-10',
-    'prepare_dataset': prepare_cifar,
-    'alternative_dataset': prepare_svhn,
-})
-
-configs = [config_mnist, config_cifar]
+if torch.cuda.is_available():
+    torch.cuda.set_device(0)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    device = 'cuda'
+else:
+    device = 'cpu'
 
 
 def benchmark_ood(config):
@@ -91,7 +76,7 @@ def benchmark_ood(config):
 
         original_images = torch.FloatTensor(x_val)
         alt_images = torch.FloatTensor(x_alt)
-        images = torch.cat((original_images, alt_images)).cuda()
+        images = torch.cat((original_images, alt_images)).to(device)
         y = np.array([0]*len(original_images) + [1]*len(alt_images))
 
         probabilities = F.softmax(model(images), dim=1).detach().cpu().numpy()
@@ -109,7 +94,7 @@ def benchmark_ood(config):
                 plt.xlabel('FPR')
                 plt.ylabel('TPR')
 
-    dir = Path(ROOT_DIR) / 'experiments' / 'data' / 'ood'
+    dir = Path(__file__).parent.absolute() / 'data' / 'ood'
     plt.title(f"{config['name']} ood detection ROC")
     plt.legend()
     plt.savefig(dir / f"var_{label}_ood_roc_{config['name']}_{config['train_size']}_{config['nn_runs']}")
@@ -129,12 +114,52 @@ def calc_ue(model, images, probabilities, estimator_type='max_prob', nn_runs=100
     elif estimator_type == 'max_entropy':
         ue = entropy(probabilities)
     else:
-        mask = build_mask(estimator_type)
-        estimator = build_estimator('bald_masked', model, dropout_mask=mask, num_classes=10, nn_runs=nn_runs)
+        estimator = build_estimator(
+            'bald_masked', model, dropout_mask=estimator_type, num_classes=10, nn_runs=nn_runs)
         ue = estimator.estimate(images)
         print(ue[:10])
 
     return ue
+
+
+config_mnist = {
+    'train_size': 50_000,
+    'val_size': 5_000,
+    'model_type': 'simple_conv',
+    'batch_size': 256,
+    'patience': 3,
+    'epochs': 50,
+    'start_lr': 1e-3,
+    'weight_decay': 0.1,
+    'reload': False,
+    'nn_runs': 150,
+    'estimators': DEFAULT_MASKS,
+    'repeats': 5,
+    'name': 'MNIST',
+    'prepare_dataset': prepare_mnist,
+    'alternative_dataset': prepare_fashion_mnist,
+}
+
+
+# # TODO: for debug, remove
+# config_mnist.update({
+#     'epochs': 2,
+#     'estimators': ['decorrelating_sc', 'mc_dropout'],
+#     'repeats': 1
+# })
+
+config_cifar = deepcopy(config_mnist)
+config_cifar.update({
+    'train_size': 50_000,
+    'val_size': 5_000,
+    'model_type': 'resnet',
+    'name': 'CIFAR-10',
+    'prepare_dataset': prepare_cifar,
+    'alternative_dataset': prepare_svhn,
+})
+
+
+configs = [config_mnist, config_cifar]
 
 
 if __name__ == '__main__':
