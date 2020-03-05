@@ -2,6 +2,7 @@ from copy import deepcopy
 import sys
 from functools import partial
 from pathlib import Path
+import random
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,23 +21,30 @@ from alpaca.uncertainty_estimator import build_estimator
 from alpaca.active_learning.simple_update import entropy
 
 from utils.fastai import ImageArrayDS
-from classification_active_learning import build_model, prepare_cifar, prepare_mnist, prepare_svhn
-
-
-if torch.cuda.is_available():
-    torch.cuda.set_device(0)
-    device = 'cuda'
-else:
-    device = 'cpu'
-
-label = 'detector'
+from classification_active_learning import build_model
+from utils.visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn
 
 
 """
 Experiment to detect errors by uncertainty estimation quantification
 It provided on MNIST, CIFAR and SVHN datasets (see config below)
-We boxplot ROC-AUC figure on multiple runs
+We report results as a boxplot ROC-AUC figure on multiple runs
 """
+
+label = 'detector'
+
+SEED = 42
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
+
+if torch.cuda.is_available():
+    torch.cuda.set_device(0)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    device = 'cuda'
+else:
+    device = 'cpu'
 
 
 def benchmark_uncertainty(config):
@@ -85,7 +93,7 @@ def benchmark_uncertainty(config):
                 plt.ylabel('TPR')
 
     # Plot the results and generate figures
-    dir = Path('data') / 'detector'
+    dir = Path(__file__).parent.absolute() / 'data' / 'detector'
     plt.title(f"{config['name']} uncertainty ROC")
     plt.legend()
     file = f"var_{label}_roc_{config['name']}_{config['train_size']}_{config['nn_runs']}"
@@ -101,7 +109,7 @@ def benchmark_uncertainty(config):
     plt.subplots_adjust(left=0.2)
 
     with sns.axes_style('whitegrid'):
-        sns.boxplot(data=df, x='ROC-AUC score', y='Estimator type', orient='h', ax=ax)
+        sns.boxplot(data=df, y='ROC-AUC score', x='Estimator type', ax=ax)
 
     ax.yaxis.grid(True)
     ax.xaxis.grid(True)
@@ -126,7 +134,7 @@ def calc_ue(model, images, probabilities, estimator_type='max_prob', nn_runs=100
 
 
 config_mnist = {
-    'train_size': 50_000,
+    'train_size': 60_000,
     'val_size': 10_000,
     'model_type': 'simple_conv',
     'batch_size': 256,
@@ -142,9 +150,16 @@ config_mnist = {
     'prepare_dataset': prepare_mnist,
 }
 
+# # TODO: for debug, remove
+# config_mnist.update({
+#     'epochs': 2,
+#     'estimators': ['decorrelating_sc', 'mc_dropout'],
+#     'repeats': 1
+# })
+
 config_cifar = deepcopy(config_mnist)
 config_cifar.update({
-    'train_size': 50_000,
+    'train_size': 60_000,
     'val_size': 10_000,
     'model_type': 'resnet',
     'name': 'CIFAR-10',
@@ -153,17 +168,14 @@ config_cifar.update({
 
 config_svhn = deepcopy(config_mnist)
 config_svhn.update({
-    'train_size': 50_000,
+    'train_size': 60_000,
     'val_size': 10_000,
     'model_type': 'resnet',
     'name': 'SVHN',
     'prepare_dataset': prepare_svhn
 })
 
-configs = [config_cifar, config_mnist, config_svhn]
-# config_mnist['epochs'] = 1
-# config_mnist['repeats'] = 1
-# config_mnist['estimators'] = ['mc_dropout']
+configs = [config_mnist, config_cifar, config_svhn]
 
 
 if __name__ == '__main__':
