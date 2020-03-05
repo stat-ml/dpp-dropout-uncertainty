@@ -33,11 +33,13 @@ python experiments/classification_ood_detection.py
 The script generates plots in `experiments/data/ood` folder
 
 #### Active Learning for computer vision
-[Active learning](https://en.wikipedia.org/wiki/Active_learning_(machine_learning) was run for computer vision tasks on MNIST/CIFAR/SVHN datasets. We report plot with error improvements.
+[Active learning](https://en.wikipedia.org/wiki/Active_learning_(machine_learning) was run for computer vision tasks on MNIST/CIFAR/SVHN datasets. We report plot with error improvements on each step.
 ```
 python experiments/classification_active_learning.py
 ```
 The script generates plots in `experiments/data/al` folder
+
+![Active learning for MNIST dataset results](figures/active_learning_mnist.png)
 
 ## Cite
 
