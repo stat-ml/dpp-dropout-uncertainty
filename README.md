@@ -10,6 +10,10 @@ Main code is implemented in our [alpaca library for active learning and uncertai
 ### Uncertainty regions and visualization 
 Qualitative research. The idea is that uncertainty should be high in trained area and low for far regions. For the code, open notebook `experiments/regression_visual-circles.ipynb`
 
+<img src="figures/2d_toy.png" alt="ring_regions" width="250"/>
+<img src="figures/dpp_ring_contour.png" alt="methods" width="500"/>
+<img src="figures/ring_results.png" alt="ring_regions" width="500"/>
+
 ### Dolan-More curves
 Series of experiments on few UCI datasets. We report performance for all experiments in one plot of [Dolan-More curve](https://abelsiqueira.github.io/blog/introduction-to-performance-profile/) for uncertainty accuracy.
 It's a quite big experiment and it took few days on Nvidia P100, so it's divided in three parts
