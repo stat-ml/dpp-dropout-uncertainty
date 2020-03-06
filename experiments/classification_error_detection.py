@@ -39,7 +39,7 @@ np.random.seed(SEED)
 random.seed(SEED)
 
 if torch.cuda.is_available():
-    torch.cuda.set_device(0)
+    torch.cuda.set_device(1)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     device = 'cuda'
@@ -127,8 +127,13 @@ def calc_ue(model, images, probabilities, estimator_type='max_prob', nn_runs=100
     elif estimator_type == 'max_entropy':
         ue = entropy(probabilities)
     else:
+
         estimator = build_estimator('bald_masked', model, dropout_mask=estimator_type, num_classes=10, nn_runs=nn_runs)
-        ue = estimator.estimate(images)
+
+        try:
+            ue = estimator.estimate(images)
+        except:
+            import ipdb; ipdb.set_trace()
         print(ue[:10])
     return ue
 

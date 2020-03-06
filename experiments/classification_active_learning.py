@@ -33,7 +33,7 @@ np.random.seed(SEED)
 random.seed(SEED)
 
 if torch.cuda.is_available():
-    torch.cuda.set_device(0)
+    torch.cuda.set_device(1)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     device = 'cuda'
@@ -109,8 +109,8 @@ def plot_metric(metrics, config, title=None):
     dir = Path(__file__).parent.absolute() / 'data' / 'al'
     file = dir / filename
     plt.savefig(file)
-    df.to_csv(filename + '.csv')
-    plt.show()
+    df.to_csv(dir / (filename + '.csv'))
+    # plt.show()
 
 
 def build_model(model_type):

@@ -32,7 +32,7 @@ Results are provided on MNIST/Fashion-MNIST and CIFAR/SVHN pairs (see config bel
 We report results as a boxplot ROC-AUC figure for multiple runs
 """
 
-label = 'ratio_3'
+label = 'ratio'
 
 SEED = 42
 torch.manual_seed(SEED)
