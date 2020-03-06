@@ -127,8 +127,13 @@ def calc_ue(model, images, probabilities, estimator_type='max_prob', nn_runs=100
     elif estimator_type == 'max_entropy':
         ue = entropy(probabilities)
     else:
+
         estimator = build_estimator('bald_masked', model, dropout_mask=estimator_type, num_classes=10, nn_runs=nn_runs)
-        ue = estimator.estimate(images)
+
+        try:
+            ue = estimator.estimate(images)
+        except:
+            import ipdb; ipdb.set_trace()
         print(ue[:10])
     return ue
 
