@@ -52,6 +52,15 @@ The script generates plots in `experiments/data/al` folder
 
 TODO: add bibitex
 
+```bibtex
+@ARTICLE{Tsymbalov2020dpp,
+  title = {Dropout Strikes Back: Improved Uncertainty Estimation via Diversity Sampled Implicit Ensembles},
+  author = {Tsymbalov, Evgenii and Fedyanin, Kirill and Panov, Maxim},
+  year = {2020},
+  journal = {arXiv:2003.03274}
+}
+```
+
 ## Reproducibility
 In most experiments* we provided the SEED variable inside the scripts, so you should be able to get the exact numbers.
 
