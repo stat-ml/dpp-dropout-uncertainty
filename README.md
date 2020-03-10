@@ -7,7 +7,7 @@ Code for paper "Dropout Strikes Back: Improved Uncertainty Estimation via Divers
 Main code is implemented in our [alpaca library for active learning and uncertainty estimation](https://github.com/stat-ml/alpaca). This repository is for experiments themselves - to benchmark the performance and reproduce the results.
 
 You can install alpaca via pip 
-`pip install alpaca-ml==0.0.8`
+`pip install alpaca-ml==0.0.10`
 
 ## Regression
 ### Uncertainty regions and visualization 
