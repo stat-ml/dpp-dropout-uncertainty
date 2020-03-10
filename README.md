@@ -24,6 +24,9 @@ It's a quite big experiment and it took few days on Nvidia P100, so it's divided
 - Generate uncertainty estimation and metrics - notebook `experiments/regression_2_prfm2.ipynb`
 - Plot the results - notebook `experiments/regression_3_dolan-more.ipynb`
 
+<img src="figures/dolan_acc_single.png" alt="Dolan-More for UQ accuracy (single models)" width="500"/>
+<img src="figures/dolan_acc_ens.png" alt="Dolan-More for UQ accuracy (ensembles)" width="500"/>
+
 
 ## Classification
 ### Error detection benchmark
