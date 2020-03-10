@@ -43,7 +43,7 @@ python experiments/classification_ood_detection.py
 The script generates plots in `experiments/data/ood` folder
 
 
-<img src="figures/ood_mnist.png.png" alt="OOD detection for CIFAR-10 dataset" width="500"/>
+<img src="figures/ood_mnist.png" alt="OOD detection for CIFAR-10 dataset" width="500"/>
 
 ### Active Learning for computer vision
 [Active learning](https://en.wikipedia.org/wiki/Active_learning_(machine_learning) was run for computer vision tasks on MNIST/CIFAR/SVHN datasets. We report plot with error improvements on each step.
