@@ -6,13 +6,16 @@ Code for paper "Dropout Strikes Back: Improved Uncertainty Estimation via Divers
 
 Main code is implemented in our [alpaca library for active learning and uncertainty estimation](https://github.com/stat-ml/alpaca). This repository is for experiments themselves - to benchmark the performance and reproduce the results.
 
+You can install alpaca via pip 
+`pip install alpaca-ml==0.0.10`
+
 ## Regression
 ### Uncertainty regions and visualization 
 Qualitative research. The idea is that uncertainty should be high in trained area and low for far regions. For the code, open notebook `experiments/regression_visual-circles.ipynb`
 
 <img src="figures/2d_toy.png" alt="ring_regions" width="250"/>
 <img src="figures/dpp_ring_contour.png" alt="methods" width="500"/>
-<img src="figures/ring_results.png" alt="ring_regions" width="500"/>
+<img src="figures/ring_results.png" alt="ring_regions" width="800"/>
 
 ### Dolan-More curves
 Series of experiments on few UCI datasets. We report performance for all experiments in one plot of [Dolan-More curve](https://abelsiqueira.github.io/blog/introduction-to-performance-profile/) for uncertainty accuracy.
@@ -30,14 +33,17 @@ python experiments/classification_error_detection.py
 ```
 The script generates plots in `experiments/data/detector` folder
 
-![Error detection for CIFAR-10 dataset](figures/error_detector_cifar.png)
+<img src="figures/error_detector_cifar.png" alt="Error detection for CIFAR-10 dataset" width="500"/>
+
 ### OOD detection benchmark
 Uncertainty estimation can be interpreted as an out-of-distribution samples detector. Thus we can treat it as prediction for binary task of in-distribution/out-of-distribution detection. We use two pairs of datasets: MNIST/Fashion-MNIST and CIFAR/SVHH. We report boxplots for ROC-AUC on MNIST/CIFAR/SVHN by rerunning few times experiment for each dataset-method pair.
 ```
 python experiments/classification_ood_detection.py
 ```
 The script generates plots in `experiments/data/ood` folder
-![OOD detection for CIFAR-10 dataset](figures/ood_mnist.png)
+
+
+<img src="figures/ood_mnist.png.png" alt="OOD detection for CIFAR-10 dataset" width="500"/>
 
 ### Active Learning for computer vision
 [Active learning](https://en.wikipedia.org/wiki/Active_learning_(machine_learning) was run for computer vision tasks on MNIST/CIFAR/SVHN datasets. We report plot with error improvements on each step.
@@ -46,13 +52,20 @@ python experiments/classification_active_learning.py
 ```
 The script generates plots in `experiments/data/al` folder
 
-![Active learning for MNIST dataset results](figures/active_learning_mnist.png)
+
+<img src="figures/active_learning_mnist.png" alt="Active learning for MNIST dataset results" width="500"/>
 
 ## Cite
-
-TODO: add bibitex
+```bibtex
+@ARTICLE{Tsymbalov2020dpp,
+  title = {Dropout Strikes Back: Improved Uncertainty Estimation via Diversity Sampled Implicit Ensembles},
+  author = {Tsymbalov, Evgenii and Fedyanin, Kirill and Panov, Maxim},
+  year = {2020},
+  journal = {arXiv:2003.03274}
+}
+```
 
 ## Reproducibility
-In most experiments* we provided the SEED variable inside the scripts, so you should be able to get the exact numbers.
+In most experiments* we provided the SEED variable inside the scripts, so you should be able to get the exact numbers with this repository - they would be slightly different from ones in the articles, but all the conclusions stay the same.
 
 *- Except the Dolan-More one, because it was too big to rerun with seed, unfortunately.
