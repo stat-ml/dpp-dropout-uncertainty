@@ -38,14 +38,27 @@ experiment_config = {
 al_config = deepcopy(base_config)
 al_config.update({
     'pool_size': 10_000,
-    'repeats': 1,
-    'methods': ['random', 'mc_dropout']
+    'val_size': 10_000,
+    'repeats': 5,
+    'methods': ['random', 'mc_dropout', 'decorrelating_sc', 'dpp', 'ht_dpp', 'k_dpp', 'ht_k_dpp'],
+    'steps': 50
 })
 
 al_experiments = {
     'mnist': {
         'start_size': 200,
         'step_size': 10,
-        'steps': 5
+    },
+    'cifar': {
+        'start_size': 500,
+        'step_size': 20,
+        'prepare_dataset': prepare_cifar,
+        'model_class': StrongConv,
+    },
+    'svhn': {
+        'start_size': 500,
+        'step_size': 20,
+        'prepare_dataset': prepare_svhn,
+        'model_class': StrongConv,
     }
 }
