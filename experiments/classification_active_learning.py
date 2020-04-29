@@ -1,49 +1,61 @@
-from functools import partial
+from argparse import ArgumentParser
+from collections import OrderedDict, defaultdict
 from copy import deepcopy
 from pathlib import Path
-import random
 
 import numpy as np
-import matplotlib.pyplot as plt
+import torch
+from torch.utils.data import TensorDataset, DataLoader
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import roc_curve, roc_auc_score
+from scipy.special import softmax
+import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+from catalyst.dl import SupervisedRunner
+from catalyst.dl.callbacks import AccuracyCallback, EarlyStoppingCallback
+from catalyst.utils import set_global_seed
 
-import torch
+from alpaca.active_learning.simple_update import entropy
+from alpaca.uncertainty_estimator import build_estimator
 
-from fastai.vision import (rand_pad, flip_lr, ImageDataBunch, Learner, accuracy)
-from fastai.callbacks import EarlyStoppingCallback
-
-from alpaca.model.cnn import AnotherConv, SimpleConv
-from alpaca.model.resnet import resnet_masked
-from alpaca.uncertainty_estimator.masks import DEFAULT_MASKS
-from alpaca.active_learning.simple_update import update_set
-from utils.fastai import ImageArrayDS
-from utils.visual_datasets import prepare_mnist, prepare_cifar, prepare_svhn
+from configs import al_config, al_experiments
 
 
-"""
-Active learning experiment for computer vision tasks (MNIST, CIFAR, SVHN)
-"""
+def parse_arguments():
+    parser = ArgumentParser()
+    parser.add_argument('name')
+    name = parser.parse_args().name
+
+    config = deepcopy(al_config)
+    config.update(al_experiments[name])
+    config['name'] = name
+
+    return config
 
 
-SEED = 42
-torch.manual_seed(SEED)
-np.random.seed(SEED)
-random.seed(SEED)
+def train(config, loaders, logdir):
+    model = config['model_class']().double()
 
-if torch.cuda.is_available():
-    torch.cuda.set_device(1)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    device = 'cuda'
-else:
-    device = 'cpu'
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters())
+    callbacks = [AccuracyCallback(num_classes=10), EarlyStoppingCallback(config['patience'])]
+
+    runner = SupervisedRunner()
+    runner.train(
+        model, criterion, optimizer, loaders,
+        logdir=logdir, num_epochs=config['epochs'], verbose=False,
+        callbacks=callbacks
+    )
 
 
-def main(config):
+def active_train(config):
     # Load data
     x_set, y_set, x_val, y_val, train_tfms = config['prepare_dataset'](config)
+    print(x_set.shape)
+
+    return [0]
 
     val_accuracy = []
     for _ in range(config['repeats']):  # more repeats for robust results
@@ -57,14 +69,14 @@ def main(config):
             x_pool, y_pool = np.copy(x_pool_init), np.copy(y_pool_init)
             x_train, y_train = np.copy(x_train_init), np.copy(y_train_init)
 
-            model = build_model(config['model_type'])
+            model = config['model_class']().double()
             accuracies = []
 
             for i in range(config['steps']):
                 print(f"Step {i+1}, train size: {len(x_train)}")
 
-                learner = train_classifier(model, config, x_train, y_train, x_val, y_val, train_tfms)
-                accuracies.append(learner.recorder.metrics[-1][0].item())
+                # learner = train_classifier(model, config, x_train, y_train, x_val, y_val, train_tfms)
+                # accuracies.append(learner.recorder.metrics[-1][0].item())
 
                 if i != config['steps'] - 1:
                     x_pool, x_train, y_pool, y_train = update_set(
@@ -74,93 +86,92 @@ def main(config):
             val_accuracy.extend(records)
 
     # Display results
-    plot_metric(val_accuracy, config)
+    try:
+        plot_metric(val_accuracy, config)
+    except:
+        import ipdb; ipdb.set_trace()
 
 
-def train_classifier(model, config, x_train, y_train, x_val, y_val, train_tfms=None):
-    loss_func = torch.nn.CrossEntropyLoss()
-
-    if train_tfms is None:
-        train_tfms = []
-    train_ds = ImageArrayDS(x_train, y_train, train_tfms)
-    val_ds = ImageArrayDS(x_val, y_val)
-    data = ImageDataBunch.create(train_ds, val_ds, bs=config['batch_size'])
-
-    callbacks = [partial(EarlyStoppingCallback, min_delta=1e-3, patience=config['patience'])]
-    learner = Learner(data, model, metrics=accuracy, loss_func=loss_func, callback_fns=callbacks)
-    learner.fit(config['epochs'], config['start_lr'], wd=config['weight_decay'])
-
-    return learner
 
 
-def plot_metric(metrics, config, title=None):
-    plt.figure(figsize=(8, 6))
+def bench_error_detection(model, estimators, loaders, x_val, y_val):
+    runner = SupervisedRunner()
+    logits = runner.predict_loader(model, loaders['valid'])
+    probabilities = softmax(logits, axis=-1)
 
-    default_title = f"Validation accuracy, start size {config['start_size']}, "
-    default_title += f"step size {config['step_size']}, model {config['model_type']}"
-    title = title or default_title
-    plt.title(title)
+    estimators = [
+        # 'max_entropy', 'max_prob',
+        'mc_dropout', 'decorrelating_sc',
+        'dpp', 'ht_dpp', 'k_dpp', 'ht_k_dpp']
 
-    df = pd.DataFrame(metrics, columns=['Accuracy', 'Step', 'Method'])
-    sns.lineplot('Step', 'Accuracy', hue='Method', data=df)
-    # plt.legend(loc='upper left')
+    uncertainties = {}
+    for estimator_name in estimators:
+        print(estimator_name)
+        ue = calc_ue(model, x_val, probabilities, estimator_name, nn_runs=150)
+        uncertainties[estimator_name] = ue
 
-    filename = f"{config['name']}_{config['model_type']}_{config['start_size']}_{config['step_size']}"
-    dir = Path(__file__).parent.absolute() / 'data' / 'al'
-    file = dir / filename
-    plt.savefig(file)
-    df.to_csv(dir / (filename + '.csv'))
-    # plt.show()
+    predictions = np.argmax(probabilities, axis=-1)
+    errors = (predictions != y_val).astype(np.int)
 
+    results = []
+    for estimator_name in estimators:
+        fpr, tpr, _ = roc_curve(errors, uncertainties[estimator_name])
+        roc_auc = roc_auc_score(errors, uncertainties[estimator_name])
+        results.append((estimator_name, roc_auc))
 
-def build_model(model_type):
-    if model_type == 'conv':
-        model = AnotherConv()
-    elif model_type == 'resnet':
-        model = resnet_masked(pretrained=True)
-    elif model_type == 'simple_conv':
-        model = SimpleConv()
-    return model
+    return results
 
 
-config_cifar = {
-    'val_size': 10_000,
-    'pool_size': 15_000,
-    'start_size': 7_000,
-    'step_size': 50,
-    'steps': 30,
-    'methods': ['random', 'error_oracle', 'max_entropy', *DEFAULT_MASKS],
-    'epochs': 30,
-    'patience': 2,
-    'model_type': 'resnet',
-    'repeats': 3,
-    'nn_runs': 100,
-    'batch_size': 128,
-    'start_lr': 5e-4,
-    'weight_decay': 0.2,
-    'prepare_dataset': prepare_cifar,
-    'name': 'cifar'
-}
+def get_loaders(x_train, y_train, x_val, y_val, config, tfms):
+    loaders = OrderedDict({
+        'train': loader(x_train, y_train, config['batch_size'], shuffle=True),
+        'valid': loader(x_val, y_val, config['batch_size'])
+    })
+    return loaders, x_train, y_train, x_val, y_val
 
-config_svhn = deepcopy(config_cifar)
-config_svhn.update({
-    'prepare_dataset': prepare_svhn,
-    'name': 'svhn'
-})
 
-config_mnist = deepcopy(config_cifar)
-config_mnist.update({
-    'start_size': 100,
-    'step_size': 20,
-    'model_type': 'simple_conv',
-    'prepare_dataset': prepare_mnist,
-    'batch_size': 32,
-    'name': 'mnist'
-})
+def calc_ue(model, datapoints, probabilities, estimator_type='max_prob', nn_runs=150):
+    if estimator_type == 'max_prob':
+        ue = 1 - probabilities[np.arange(len(probabilities)), np.argmax(probabilities, axis=-1)]
+    elif estimator_type == 'max_entropy':
+        ue = entropy(probabilities)
+    else:
+        estimator = build_estimator(
+            'bald_masked', model, dropout_mask=estimator_type, num_classes=10,
+            nn_runs=nn_runs, keep_runs=True, acquisition='var_ratio')
+        ue = estimator.estimate(torch.DoubleTensor(datapoints).cuda())
+    return ue
 
-configs = [config_mnist, config_cifar, config_svhn]
+
+# Set initial datas
+def loader(x, y, batch_size=128, shuffle=False):
+    ds = TensorDataset(torch.DoubleTensor(x), torch.LongTensor(y))
+    _loader = DataLoader(ds, batch_size=batch_size, num_workers=4, shuffle=shuffle)
+    return _loader
 
 
 if __name__ == '__main__':
-    for config in configs:
-        main(config)
+    config = parse_arguments()
+    results = []
+    for i in range(config['repeats']):
+        accuracies = active_train(config)
+        results.extend(accuracies)
+
+
+    # rocaucs = []
+    # for i in range(config['repeats']):
+    #     set_global_seed(i + 42)
+    #     logdir = f"logs/ht/{config['name']}_{i}"
+    #     model = train(config, loaders, logdir)
+    #     rocaucs.extend(bench_error_detection(model, config, loaders, x_val, y_val))
+    #
+    # df = pd.DataFrame(rocaucs, columns=['Estimator', 'ROC-AUCs'])
+    # plt.figure(figsize=(9, 6))
+    # plt.title(f"Error detection for {config['name']}")
+    # sns.boxplot('Estimator', 'ROC-AUCs', data=df)
+    # plt.savefig(f"data/al/{config['name']}.png", dpi=150)
+    # plt.show()
+    #
+    # df.to_csv(f"logs/{config['name']}_al.csv")
+
+
