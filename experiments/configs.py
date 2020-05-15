@@ -50,15 +50,17 @@ al_experiments = {
         'step_size': 10,
     },
     'cifar': {
-        'start_size': 500,
-        'step_size': 20,
+        'start_size': 2000,
+        'step_size': 30,
         'prepare_dataset': prepare_cifar,
         'model_class': StrongConv,
+        'repeats': 3
     },
     'svhn': {
-        'start_size': 500,
-        'step_size': 20,
+        'start_size': 2000,
+        'step_size': 30,
         'prepare_dataset': prepare_svhn,
         'model_class': StrongConv,
+        'repeats': 3
     }
 }

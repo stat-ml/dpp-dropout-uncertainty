@@ -53,16 +53,16 @@ def active_train(config, i):
 
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(model.parameters())
-        callbacks = [AccuracyCallback(num_classes=10), EarlyStoppingCallback(config['patience'])]
-        runner = SupervisedRunner()
 
         accuracies = []
 
-        for i in range(config['steps']):
-            print(f"Step {i+1}, train size: {len(x_train)}")
+        for j in range(config['steps']):
+            print(f"Step {j+1}, train size: {len(x_train)}")
 
             loaders = get_loaders(x_train, y_train, x_val, y_val, config['batch_size'], train_tfms)
 
+            runner = SupervisedRunner()
+            callbacks = [AccuracyCallback(num_classes=10), EarlyStoppingCallback(config['patience'])]
             runner.train(
                 model, criterion, optimizer, loaders,
                 logdir=logdir, num_epochs=config['epochs'], verbose=False,
@@ -77,6 +77,7 @@ def active_train(config, i):
                 x_pool, x_train, y_pool, y_train = update_set(
                     x_pool, x_train, y_pool, y_train, config['step_size'],
                     method=method, model=model, samples=samples)
+        print('Metric', accuracies)
 
         records = list(zip(accuracies, range(len(accuracies)), [method] * len(accuracies)))
         val_accuracy.extend(records)
@@ -101,28 +102,30 @@ def loader(x, y, batch_size=128, tfms=None, train=False):
 
 
 def plot_metric(metrics, config, title=None):
-    plt.figure(figsize=(8, 6))
-    default_title = f"Validation accuracy, start size {config['start_size']}, "
-    default_title += f"step size {config['step_size']}"
-    title = title or default_title
-    plt.title(title)
+    # plt.figure(figsize=(8, 6))
+    # default_title = f"Validation accuracy, start size {config['start_size']}, "
+    # default_title += f"step size {config['step_size']}"
+    # title = title or default_title
+    # plt.title(title)
 
     df = pd.DataFrame(metrics, columns=['Accuracy', 'Step', 'Method'])
-    sns.lineplot('Step', 'Accuracy', hue='Method', data=df)
+    # sns.lineplot('Step', 'Accuracy', hue='Method', data=df)
     # plt.legend(loc='upper left')
 
     filename = f"ht_{config['name']}_{config['start_size']}_{config['step_size']}"
     dir = Path(__file__).parent.absolute() / 'data' / 'al'
     file = dir / filename
-    plt.savefig(file)
     df.to_csv(dir / (filename + '.csv'))
-    plt.show()
+    # plt.savefig(file)
+
+
 
 
 if __name__ == '__main__':
     config = parse_arguments()
     results = []
     for i in range(config['repeats']):
+        print(f"======{i}======")
         accuracies = active_train(config, i)
         results.extend(accuracies)
 
