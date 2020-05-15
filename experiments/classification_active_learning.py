@@ -102,23 +102,24 @@ def loader(x, y, batch_size=128, tfms=None, train=False):
 
 
 def plot_metric(metrics, config, title=None):
-    # plt.figure(figsize=(8, 6))
-    # default_title = f"Validation accuracy, start size {config['start_size']}, "
-    # default_title += f"step size {config['step_size']}"
-    # title = title or default_title
-    # plt.title(title)
-
     df = pd.DataFrame(metrics, columns=['Accuracy', 'Step', 'Method'])
-    # sns.lineplot('Step', 'Accuracy', hue='Method', data=df)
-    # plt.legend(loc='upper left')
 
     filename = f"ht_{config['name']}_{config['start_size']}_{config['step_size']}"
     dir = Path(__file__).parent.absolute() / 'data' / 'al'
-    file = dir / filename
     df.to_csv(dir / (filename + '.csv'))
-    # plt.savefig(file)
 
-
+    try:
+        sns.lineplot('Step', 'Accuracy', hue='Method', data=df)
+        plt.legend(loc='upper left')
+        plt.figure(figsize=(8, 6))
+        default_title = f"Validation accuracy, start size {config['start_size']}, "
+        default_title += f"step size {config['step_size']}"
+        title = title or default_title
+        plt.title(title)
+        file = dir / filename
+        plt.savefig(file)
+    except Exception as e:
+        print(e)
 
 
 if __name__ == '__main__':
