@@ -10,14 +10,16 @@ import matplotlib.pyplot as plt
 from alpaca.dataloader.builder import build_dataset
 
 
-augmentations = Compose([
-    HorizontalFlip(p=0.5),
-    # Blur(blur_limit=1, p=0.2),
-    ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=10, p=0.7),
-    CLAHE(clip_limit=2, tile_grid_size=(2, 2), p=0.3),
-    HueSaturationValue(5, 5, 5, p=0.5),
-    RandomBrightnessContrast(0.05, 0.05, p=0.5),
-])
+# augmentations = Compose([
+#     HorizontalFlip(p=0.5),
+#     # Blur(blur_limit=1, p=0.2),
+#     ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=10, p=0.7),
+#     CLAHE(clip_limit=2, tile_grid_size=(2, 2), p=0.3),
+#     HueSaturationValue(5, 5, 5, p=0.5),
+#     RandomBrightnessContrast(0.05, 0.05, p=0.5),
+# ])
+
+augmentations = Compose([])
 
 post_aug = Compose([
     Normalize(),

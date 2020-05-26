@@ -20,12 +20,12 @@ base_config = {
 
 experiment_config = {
     'mnist': {
-        'checkpoint': 'logs/ht/mnist/checkpoints/train.5.pth'
+        'train_size': 500
     },
     'svhn': {
         'prepare_dataset': prepare_svhn,
         'model_class': StrongConv,
-        'repeats': 5
+        'repeats': 5,
     },
     'cifar': {
         'prepare_dataset': prepare_cifar,
