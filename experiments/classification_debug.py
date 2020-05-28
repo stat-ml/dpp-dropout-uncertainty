@@ -30,11 +30,13 @@ from classification_active_learning import loader
 def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument('name')
-    name = parser.parse_args().name
+    parser.add_argument('--acquisition', '-a', type=str, default='bald')
+    args = parser.parse_args()
 
     config = deepcopy(base_config)
-    config.update(experiment_config[name])
-    config['name'] = name
+    config.update(experiment_config[args.name])
+    config['name'] = args.name
+    config['acquisition'] = args.acquisition
 
     return config
 
@@ -60,7 +62,7 @@ def train(config, loaders, logdir, checkpoint=None):
     return model
 
 
-def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val):
+def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val, acquisition):
     runner = SupervisedRunner()
     logits = runner.predict_loader(model, loaders['valid'])
     probabilities = softmax(logits, axis=-1)
@@ -70,7 +72,7 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val):
     uncertainties = {}
     for estimator_name in estimators:
         print(estimator_name)
-        ue = calc_ue(model, x_val, probabilities, estimator_name, nn_runs=150)
+        ue = calc_ue(model, x_val, probabilities, estimator_name, nn_runs=150, acquisition=acquisition)
         uncertainties[estimator_name] = ue
 
     record = {
@@ -85,6 +87,19 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val):
         pickle.dump(record, f)
 
     return probabilities, uncertainties, estimators
+
+
+def calc_ue(model, datapoints, probabilities, estimator_type='max_prob', nn_runs=150, acquisition='bald'):
+    if estimator_type == 'max_prob':
+        ue = 1 - probabilities[np.arange(len(probabilities)), np.argmax(probabilities, axis=-1)]
+    elif estimator_type == 'max_entropy':
+        ue = entropy(probabilities)
+    else:
+        estimator = build_estimator(
+            'bald_masked', model, dropout_mask=estimator_type, num_classes=10,
+            nn_runs=nn_runs, keep_runs=True, acquisition=acquisition)
+        ue = estimator.estimate(torch.DoubleTensor(datapoints).cuda())
+    return ue
 
 
 def misclassfication_detection(y_val, probabilities, uncertainties, estimators):
@@ -114,19 +129,6 @@ def get_data(config):
     return loaders, x_train, y_train, x_val, y_val
 
 
-def calc_ue(model, datapoints, probabilities, estimator_type='max_prob', nn_runs=150):
-    if estimator_type == 'max_prob':
-        ue = 1 - probabilities[np.arange(len(probabilities)), np.argmax(probabilities, axis=-1)]
-    elif estimator_type == 'max_entropy':
-        ue = entropy(probabilities)
-    else:
-        estimator = build_estimator(
-            'bald_masked', model, dropout_mask=estimator_type, num_classes=10,
-            nn_runs=nn_runs, keep_runs=True, acquisition='var_ratio')
-        ue = estimator.estimate(torch.DoubleTensor(datapoints).cuda())
-    return ue
-
-
 # # Set initial datas
 # def loader(x, y, batch_size=128, shuffle=False):
 #     ds = TensorDataset(torch.DoubleTensor(x), torch.LongTensor(y))
@@ -136,12 +138,14 @@ def calc_ue(model, datapoints, probabilities, estimator_type='max_prob', nn_runs
 
 if __name__ == '__main__':
     config = parse_arguments()
+    set_global_seed(42)
     loaders, x_train, y_train, x_val, y_val = get_data(config)
+    print(y_train[:5])
 
     rocaucs = []
     for i in range(config['repeats']):
         set_global_seed(i + 42)
-        logdir = Path(f"logs/ht/{config['name']}_{i}")
+        logdir = Path(f"logs/{config['acquisition']}/{config['name']}_{i}")
         print(logdir)
 
         possible_checkpoint = logdir / 'checkpoints' / 'best.pth'
@@ -154,16 +158,15 @@ if __name__ == '__main__':
         x_val_tensor = torch.cat([batch[0] for batch in loaders['valid']])
 
         probabilities, uncertainties, estimators = bench_uncertainty(
-            model, checkpoint, loaders, x_val_tensor, y_val)
+            model, checkpoint, loaders, x_val_tensor, y_val, config['acquisition'])
 
         aucs = misclassfication_detection(y_val, probabilities, uncertainties, estimators)
         rocaucs.extend(aucs)
 
     df = pd.DataFrame(rocaucs, columns=['Estimator', 'ROC-AUCs'])
-    df.to_csv(f"logs/{config['name']}_ed.csv")
+    df.to_csv(f"logs/{config['name']}_db_ed.csv")
     plt.figure(figsize=(9, 6))
     plt.title(f"Error detection for {config['name']}")
     sns.boxplot('Estimator', 'ROC-AUCs', data=df)
-    plt.savefig(f"data/ed/{config['name']}.png", dpi=150)
+    plt.savefig(f"data/ed/{config['name']}_bn.png", dpi=150)
     plt.show()
-

@@ -20,7 +20,7 @@ base_config = {
 
 experiment_config = {
     'mnist': {
-        'train_size': 500
+        'train_size': 1000
     },
     'svhn': {
         'prepare_dataset': prepare_svhn,
