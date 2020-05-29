@@ -28,47 +28,42 @@ for i in range(args.repeats):
     prediction = np.argmax(record['probabilities'], axis=-1)
     is_correct = (prediction == record['y_val']).astype(np.int)
 
-
     # bins = np.concatenate((np.arange(0, 0.9, 0.1), np.arange(0.9, 1, 0.01)))
-    bins = np.arange(0, 0.9, 0.1)
-
-    fig= plt.figure(figsize=(12, 8))
-    fig.suptitle(args.group)
+    bins = np.arange(0, 1, 0.1)
 
     for i, estimator in enumerate(record['estimators']):
         if estimator in ['max_entropy']:
             continue
         ue = record['uncertainties'][estimator]
-        plt.figure(figsize=(16, 9))
 
-        # plt.title(estimator)
-        # sns.distplot(ue, bins=100)
-        # plt.hist(ue)
-        # plt.show()
+        print(estimator)
+        print(min(ue), max(ue))
+        if args.group == 'bald_n':
+            ue = ue / max(ue)
 
         for confidence_level in bins:
             point_confidences = 1 - ue
             bin_correct = is_correct[point_confidences > confidence_level]
-            print(len(bin_correct))
-            acc_conf.append((confidence_level, sum(bin_correct) / len(bin_correct), estimator))
+            if len(bin_correct) > 0:
+                accuracy = sum(bin_correct) / len(bin_correct)
+            else:
+                accuracy = None
+            acc_conf.append((confidence_level, accuracy, estimator))
             count_conf.append((confidence_level, len(bin_correct), estimator))
 
 
 plt.figure(figsize=(8, 6))
-plt.title(f"Confidence-accuracy {args.name}")
-print(acc_conf)
+plt.title(f"Confidence-accuracy {args.name} {args.group}")
 df = pd.DataFrame(acc_conf, columns=['Confidence level', 'Accuracy', 'Estimator'])
 sns.lineplot('Confidence level', 'Accuracy', data=df, hue='Estimator')
-plt.savefig(f"data/conf_accuracy_{args.name}_vr", dpi=150)
+plt.savefig(f"data/conf_accuracy_{args.name}_{args.group}", dpi=150)
 plt.show()
 
 
-
 plt.figure(figsize=(8, 6))
-plt.title(f"Confidence-count {args.name}")
-print(count_conf)
+plt.title(f"Confidence-count {args.name} {args.group}")
 df = pd.DataFrame(count_conf, columns=['Confidence level', 'Count', 'Estimator'])
 sns.lineplot('Confidence level', 'Count', data=df, hue='Estimator')
-plt.savefig(f"data/conf_count_{args.name}_099", dpi=150)
+plt.savefig(f"data/conf_count_{args.name}_{args.group}", dpi=150)
 plt.show()
 

@@ -32,11 +32,13 @@ for i in range(args.repeats):
     fig.suptitle(args.group)
 
     for i, estimator in enumerate(record['estimators']):
+        if estimator in ['max_entropy']:
+            continue
         ue = record['uncertainties'][estimator]
         print(ue.shape)
         print(estimator)
         print(min(ue), max(ue))
-        ax = plt.subplot(2, 3, i+1)
+        ax = plt.subplot(2, 3, i)
         ax.set_title(estimator)
         plt.hist(ue)
 
