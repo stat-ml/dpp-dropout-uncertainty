@@ -11,16 +11,20 @@ import seaborn as sns
 parser = argparse.ArgumentParser()
 parser.add_argument('name', type=str)
 parser.add_argument('repeats', type=int)
-parser.add_argument('--group', type=str, default='ht')
+parser.add_argument('--acquisition', '-a', type=str, default='bald')
+parser.add_argument('--covariance', dest='covariance', action='store_true')
 args = parser.parse_args()
 
 
 acc_conf = []
 count_conf = []
 
+covariance_str = '_covar' if args.covariance else ''
+acquisition_str = 'bald' if args.acquisition == 'bald_n' else args.acquisition
 
 for i in range(args.repeats):
-    file_name = f'logs/{args.group}/{args.name}_{i}/ue.pickle'
+    file_name = f'logs/classification/{args.name}_{i}/ue_{acquisition_str}{covariance_str}.pickle'
+    print(file_name)
 
     with open(file_name, 'rb') as f:
         record = pickle.load(f)
@@ -38,7 +42,7 @@ for i in range(args.repeats):
 
         print(estimator)
         print(min(ue), max(ue))
-        if args.group == 'bald_n':
+        if args.acquisition == 'bald_n':
             ue = ue / max(ue)
 
         for confidence_level in bins:
@@ -48,22 +52,30 @@ for i in range(args.repeats):
                 accuracy = sum(bin_correct) / len(bin_correct)
             else:
                 accuracy = None
-            acc_conf.append((confidence_level, accuracy, estimator))
-            count_conf.append((confidence_level, len(bin_correct), estimator))
+
+            def estimator_name(esitmator):
+                if estimator == 'max_prob':
+                    return estimator
+                else:
+                    return estimator+"_"+args.acquisition
+            acc_conf.append((confidence_level, accuracy, estimator_name(estimator)))
+            count_conf.append((confidence_level, len(bin_correct), estimator_name(estimator)))
 
 
-plt.figure(figsize=(8, 6))
-plt.title(f"Confidence-accuracy {args.name} {args.group}")
+plt.figure(figsize=(12, 6))
+
+plt.subplot(1, 2, 1)
+plt.title(f"Confidence-accuracy {args.name} {args.acquisition}  {covariance_str}")
 df = pd.DataFrame(acc_conf, columns=['Confidence level', 'Accuracy', 'Estimator'])
 sns.lineplot('Confidence level', 'Accuracy', data=df, hue='Estimator')
-plt.savefig(f"data/conf_accuracy_{args.name}_{args.group}", dpi=150)
-plt.show()
+# plt.savefig(f"data/conf_accuracy_{args.name}_{args.acquisition}", dpi=150)
 
-
-plt.figure(figsize=(8, 6))
-plt.title(f"Confidence-count {args.name} {args.group}")
+plt.subplot(1, 2, 2)
+# plt.figure(figsize=(8, 6))
+plt.title(f"Confidence-count {args.name} {args.acquisition} {covariance_str}")
 df = pd.DataFrame(count_conf, columns=['Confidence level', 'Count', 'Estimator'])
 sns.lineplot('Confidence level', 'Count', data=df, hue='Estimator')
-plt.savefig(f"data/conf_count_{args.name}_{args.group}", dpi=150)
+plt.savefig(f"data/conf_accuracy_{args.name}_{args.acquisition}{covariance_str}", dpi=150)
+# plt.savefig(f"data/conf_count_{args.name}_{args.acquisition}", dpi=150)
 plt.show()
 

@@ -71,17 +71,19 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val, acquisitio
     probabilities = softmax(logits, axis=-1)
 
     if config['covariance']:
-        estimators = ['max_entropy', 'max_prob', 'cov_dpp', 'cov_k_dpp']
+        estimators = ['max_prob', 'cov_dpp', 'cov_k_dpp']
     else:
-        estimators = ['max_entropy', 'max_prob', *DEFAULT_MASKS]
+        estimators = ['max_prob', *DEFAULT_MASKS]
 
     print(estimators)
 
     uncertainties = {}
+    lls = {}
     for estimator_name in estimators:
         print(estimator_name)
-        ue = calc_ue(model, x_val, probabilities, estimator_name, nn_runs=150, acquisition=acquisition)
+        ue, ll = calc_ue(model, x_val, y_val, probabilities, estimator_name, nn_runs=150, acquisition=acquisition)
         uncertainties[estimator_name] = ue
+        lls[estimator_name] = ll
 
     record = {
         'checkpoint': model_checkpoint,
@@ -89,25 +91,47 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val, acquisitio
         'uncertainties': uncertainties,
         'probabilities': probabilities,
         'logits': logits,
-        'estimators': estimators
+        'estimators': estimators,
+        'lls': lls
     }
-    with open(logdir / 'ue.pickle', 'wb') as f:
+    covariance_str = '_covar' if config['covariance'] else ''
+    with open(logdir / f"ue_{config['acquisition']}{covariance_str}.pickle", 'wb') as f:
         pickle.dump(record, f)
 
     return probabilities, uncertainties, estimators
 
 
-def calc_ue(model, datapoints, probabilities, estimator_type='max_prob', nn_runs=150, acquisition='bald'):
+def log_likelihood(probabilities, y):
+    try:
+        ll = np.mean(np.log(probabilities[np.arange(len(probabilities)), y]))
+    except FloatingPointError:
+        import ipdb; ipdb.set_trace()
+    return ll
+
+
+def calc_ue(model, datapoints, y_val, probabilities, estimator_type='max_prob', nn_runs=150, acquisition='bald'):
     if estimator_type == 'max_prob':
-        ue = 1 - probabilities[np.arange(len(probabilities)), np.argmax(probabilities, axis=-1)]
+        ue = 1 - np.max(probabilities, axis=-1)
+        ll = log_likelihood(probabilities, y_val)
     elif estimator_type == 'max_entropy':
         ue = entropy(probabilities)
+        ll = log_likelihood(probabilities, y_val)
     else:
+        acquisition_param = 'var_ratio' if acquisition == 'max_prob' else acquisition
+
         estimator = build_estimator(
             'bald_masked', model, dropout_mask=estimator_type, num_classes=10,
-            nn_runs=nn_runs, keep_runs=True, acquisition=acquisition)
+            nn_runs=nn_runs, keep_runs=True, acquisition=acquisition_param)
         ue = estimator.estimate(torch.DoubleTensor(datapoints).cuda())
-    return ue
+        probs = softmax(estimator.last_mcd_runs(), axis=-1)
+        probs = np.mean(probs, axis=-2)
+
+        ll = log_likelihood(probs, y_val)
+
+        if acquisition == 'max_prob':
+            ue = 1 - np.max(probs, axis=-1)
+
+    return ue, ll
 
 
 def misclassfication_detection(y_val, probabilities, uncertainties, estimators):
@@ -143,6 +167,7 @@ def get_data(config):
 #     _loader = DataLoader(ds, batch_size=batch_size, num_workers=4, shuffle=shuffle)
 #     return _loader
 
+sorted
 
 if __name__ == '__main__':
     config = parse_arguments()
@@ -153,7 +178,7 @@ if __name__ == '__main__':
     rocaucs = []
     for i in range(config['repeats']):
         set_global_seed(i + 42)
-        logdir = Path(f"logs/{config['acquisition']}/{config['name']}_{i}")
+        logdir = Path(f"logs/classification/{config['name']}_{i}")
         print(logdir)
 
         possible_checkpoint = logdir / 'checkpoints' / 'best.pth'
@@ -172,7 +197,7 @@ if __name__ == '__main__':
         rocaucs.extend(aucs)
 
     df = pd.DataFrame(rocaucs, columns=['Estimator', 'ROC-AUCs'])
-    df.to_csv(f"logs/{config['name']}_db_ed.csv")
+    df.to_csv(f"logs/{config['name']}_{config['acquisition']}.csv")
     plt.figure(figsize=(9, 6))
     plt.title(f"Error detection for {config['name']}")
     sns.boxplot('Estimator', 'ROC-AUCs', data=df)

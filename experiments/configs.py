@@ -14,13 +14,30 @@ base_config = {
     'epochs': 50,
     'patience': 3,
     'batch_size': 128,
-    'repeats': 5
+    'repeats': 3
 }
 
 
 experiment_config = {
     'mnist': {
         'train_size': 1000
+    },
+    'svhn': {
+        'prepare_dataset': prepare_svhn,
+        'model_class': StrongConv,
+        'repeats': 5,
+    },
+    'cifar': {
+        'prepare_dataset': prepare_cifar,
+        'model_class': StrongConv,
+        'repeats': 5
+    }
+}
+
+experiment_ood_config = {
+    'mnist': {
+        'train_size': 1000,
+        'ood_dataset': prepare_mnist
     },
     'svhn': {
         'prepare_dataset': prepare_svhn,
