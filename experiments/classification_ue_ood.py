@@ -33,12 +33,14 @@ def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument('name')
     parser.add_argument('--acquisition', '-a', type=str, default='bald')
+    parser.add_argument('--covariance', dest='covariance', action='store_true')
     args = parser.parse_args()
 
     config = deepcopy(base_config)
     config.update(experiment_ood_config[args.name])
     config['name'] = args.name
     config['acquisition'] = args.acquisition
+    config['covariance'] = args.covariance
 
     return config
 
@@ -48,7 +50,7 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_ood, acquisition):
     logits = runner.predict_loader(model, loaders['ood'])
     probabilities = softmax(logits, axis=-1)
 
-    estimators = ['max_entropy', 'max_prob', *DEFAULT_MASKS]
+    estimators = ['max_prob', *DEFAULT_MASKS]
 
     uncertainties = {}
     for estimator_name in estimators:
@@ -67,7 +69,8 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_ood, acquisition):
     }
 
     covariance_str = '_covar' if config['covariance'] else ''
-    with open(logdir / f"ue_ood_{config['acquisition']}{covariance_str}.pickle", 'wb') as f:
+    file_name = logdir / f"ue_ood_{config['acquisition']}{covariance_str}.pickle"
+    with open(file_name, 'wb') as f:
         pickle.dump(record, f)
 
     return probabilities, uncertainties, estimators
@@ -75,14 +78,22 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_ood, acquisition):
 
 def calc_ue(model, datapoints, probabilities, estimator_type='max_prob', nn_runs=150, acquisition='bald'):
     if estimator_type == 'max_prob':
-        ue = 1 - probabilities[np.arange(len(probabilities)), np.argmax(probabilities, axis=-1)]
+        ue = 1 - np.max(probabilities, axis=-1)
     elif estimator_type == 'max_entropy':
         ue = entropy(probabilities)
     else:
+        acquisition_param = 'var_ratio' if acquisition == 'max_prob' else acquisition
+
         estimator = build_estimator(
             'bald_masked', model, dropout_mask=estimator_type, num_classes=10,
-            nn_runs=nn_runs, keep_runs=True, acquisition=acquisition)
+            nn_runs=nn_runs, keep_runs=True, acquisition=acquisition_param)
         ue = estimator.estimate(torch.DoubleTensor(datapoints).cuda())
+
+        if acquisition == 'max_prob':
+            probs = softmax(estimator.last_mcd_runs(), axis=-1)
+            probs = np.mean(probs, axis=-2)
+            ue = 1 - np.max(probs, axis=-1)
+
     return ue
 
 
@@ -112,7 +123,7 @@ if __name__ == '__main__':
 
     for i in range(config['repeats']):
         set_global_seed(i + 42)
-        logdir = Path(f"logs/{config['acquisition']}/{config['name']}_{i}")
+        logdir = Path(f"logs/classification/{config['name']}_{i}")
         print(logdir)
 
         possible_checkpoint = logdir / 'checkpoints' / 'best.pth'
