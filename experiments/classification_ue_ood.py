@@ -45,9 +45,9 @@ def parse_arguments():
     return config
 
 
-def bench_uncertainty(model, model_checkpoint, loaders, x_ood, acquisition):
+def bench_uncertainty(model, model_checkpoint, ood_loader, x_ood, acquisition):
     runner = SupervisedRunner()
-    logits = runner.predict_loader(model, loaders['ood'])
+    logits = runner.predict_loader(model, ood_loader)
     probabilities = softmax(logits, axis=-1)
 
     estimators = ['max_prob', *DEFAULT_MASKS]
@@ -99,31 +99,32 @@ def calc_ue(model, datapoints, probabilities, estimator_type='max_prob', nn_runs
 
 def get_data(config):
     x_train, y_train, x_val, y_val, train_tfms = config['prepare_dataset'](config)
-    _, _, x_ood, y_ood, _ = config['prepare_dataset'](config)
 
     if len(x_train) > config['train_size']:
         x_train, _, y_train, _ = train_test_split(
             x_train, y_train, train_size=config['train_size'], stratify=y_train
         )
 
+    _, _, x_ood, y_ood, _ = config['prepare_dataset'](config)
+    ood_loader = loader(x_ood, y_ood, config['batch_size'])
+
     loaders = OrderedDict({
         'train': loader(x_train, y_train, config['batch_size'], tfms=train_tfms, train=True),
         'valid': loader(x_val, y_val, config['batch_size']),
-        'ood': loader(x_ood, y_ood, config['batch_size'])
     })
-    return loaders, x_train, y_train, x_val, y_val
+    return loaders, ood_loader, x_train, y_train, x_val, y_val, x_ood, y_ood
 
 
 if __name__ == '__main__':
     config = parse_arguments()
     print(config)
     set_global_seed(42)
-    loaders, x_train, y_train, x_val, y_val = get_data(config)
+    loaders, ood_loader, x_train, y_train, x_val, y_val, x_ood, y_ood = get_data(config)
     print(y_train[:5])
 
     for i in range(config['repeats']):
         set_global_seed(i + 42)
-        logdir = Path(f"logs/classification/{config['name']}_{i}")
+        logdir = Path(f"logs/classification_resnet/{config['name']}_{i}")
         print(logdir)
 
         possible_checkpoint = logdir / 'checkpoints' / 'best.pth'
@@ -134,8 +135,8 @@ if __name__ == '__main__':
 
         model = train(config, loaders, logdir, checkpoint)
         print(model)
-        x_ood_tensor = torch.cat([batch[0] for batch in loaders['ood']])
+        x_ood_tensor = torch.cat([batch[0] for batch in ood_loader])
 
         probabilities, uncertainties, estimators = bench_uncertainty(
-            model, checkpoint, loaders, x_ood_tensor, config['acquisition'])
+            model, checkpoint, ood_loader, x_ood_tensor, config['acquisition'])
 

@@ -3,7 +3,7 @@ from copy import deepcopy
 import torch
 
 from utils.visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn
-from models import SimpleConv, StrongConv
+from models import SimpleConv, StrongConv, resnet_masked
 
 
 base_config = {
@@ -14,13 +14,15 @@ base_config = {
     'epochs': 50,
     'patience': 3,
     'batch_size': 128,
-    'repeats': 3
+    'repeats': 3,
+    'dropout_rate': 0.3
 }
 
 
 experiment_config = {
     'mnist': {
-        'train_size': 1000
+        'train_size': 1000,
+        'dropout_rate': 0.5
     },
     'svhn': {
         'prepare_dataset': prepare_svhn,
@@ -29,8 +31,7 @@ experiment_config = {
     },
     'cifar': {
         'prepare_dataset': prepare_cifar,
-        'model_class': StrongConv,
-        'repeats': 5
+        'model_class': resnet_masked,
     }
 }
 
@@ -42,12 +43,12 @@ experiment_ood_config = {
     'svhn': {
         'prepare_dataset': prepare_svhn,
         'model_class': StrongConv,
-        'repeats': 5,
+        'repeats': 3,
     },
     'cifar': {
         'prepare_dataset': prepare_cifar,
-        'model_class': StrongConv,
-        'repeats': 5
+        'model_class': resnet_masked,
+        'repeats': 3
     }
 }
 

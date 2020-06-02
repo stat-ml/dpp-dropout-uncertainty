@@ -45,7 +45,7 @@ def parse_arguments():
 
 
 def train(config, loaders, logdir, checkpoint=None):
-    model = config['model_class']().double()
+    model = config['model_class'](config['dropout_rate']).double()
 
     if checkpoint is not None:
         model.load_state_dict(torch.load(checkpoint)['model_state_dict'])
@@ -58,7 +58,7 @@ def train(config, loaders, logdir, checkpoint=None):
         runner = SupervisedRunner()
         runner.train(
             model, criterion, optimizer, loaders,
-            logdir=logdir, num_epochs=config['epochs'], verbose=False,
+            logdir=logdir, num_epochs=config['epochs'], verbose=True,
             callbacks=callbacks
         )
 
@@ -80,10 +80,13 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val, acquisitio
     uncertainties = {}
     lls = {}
     for estimator_name in estimators:
-        print(estimator_name)
-        ue, ll = calc_ue(model, x_val, y_val, probabilities, estimator_name, nn_runs=150, acquisition=acquisition)
-        uncertainties[estimator_name] = ue
-        lls[estimator_name] = ll
+        try:
+            print(estimator_name)
+            ue, ll = calc_ue(model, x_val, y_val, probabilities, estimator_name, nn_runs=150, acquisition=acquisition)
+            uncertainties[estimator_name] = ue
+            lls[estimator_name] = ll
+        except Exception as e:
+            print(e)
 
     record = {
         'checkpoint': model_checkpoint,
@@ -161,14 +164,6 @@ def get_data(config):
     return loaders, x_train, y_train, x_val, y_val
 
 
-# # Set initial datas
-# def loader(x, y, batch_size=128, shuffle=False):
-#     ds = TensorDataset(torch.DoubleTensor(x), torch.LongTensor(y))
-#     _loader = DataLoader(ds, batch_size=batch_size, num_workers=4, shuffle=shuffle)
-#     return _loader
-
-sorted
-
 if __name__ == '__main__':
     config = parse_arguments()
     set_global_seed(42)
@@ -178,7 +173,7 @@ if __name__ == '__main__':
     rocaucs = []
     for i in range(config['repeats']):
         set_global_seed(i + 42)
-        logdir = Path(f"logs/classification/{config['name']}_{i}")
+        logdir = Path(f"logs/classification_resnet/{config['name']}_{i}")
         print(logdir)
 
         possible_checkpoint = logdir / 'checkpoints' / 'best.pth'

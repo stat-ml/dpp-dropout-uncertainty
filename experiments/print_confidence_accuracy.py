@@ -13,6 +13,7 @@ parser.add_argument('name', type=str)
 parser.add_argument('repeats', type=int)
 parser.add_argument('--acquisition', '-a', type=str, default='bald')
 parser.add_argument('--covariance', dest='covariance', action='store_true')
+parser.add_argument('--resnet', dest='resnet', action='store_true')
 args = parser.parse_args()
 
 
@@ -20,10 +21,11 @@ acc_conf = []
 count_conf = []
 
 covariance_str = '_covar' if args.covariance else ''
+resnet_str = '_resnet' if args.resnet else ''
 acquisition_str = 'bald' if args.acquisition == 'bald_n' else args.acquisition
 
 for i in range(args.repeats):
-    file_name = f'logs/classification/{args.name}_{i}/ue_{acquisition_str}{covariance_str}.pickle'
+    file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}{covariance_str}.pickle'
     print(file_name)
 
     with open(file_name, 'rb') as f:
@@ -42,7 +44,7 @@ for i in range(args.repeats):
 
         print(estimator)
         print(min(ue), max(ue))
-        if args.acquisition == 'bald_n':
+        if args.acquisition == 'bald':
             ue = ue / max(ue)
 
         for confidence_level in bins:
@@ -53,16 +55,17 @@ for i in range(args.repeats):
             else:
                 accuracy = None
 
-            def estimator_name(esitmator):
-                if estimator == 'max_prob':
-                    return estimator
-                else:
-                    return estimator+"_"+args.acquisition
-            acc_conf.append((confidence_level, accuracy, estimator_name(estimator)))
-            count_conf.append((confidence_level, len(bin_correct), estimator_name(estimator)))
+            if estimator == 'max_prob':
+                estimator_name = estimator
+            else:
+                estimator_name = f"{estimator}_{args.acquisition}"
+
+            acc_conf.append((confidence_level, accuracy, estimator_name))
+            count_conf.append((confidence_level, len(bin_correct), estimator_name))
 
 
 plt.figure(figsize=(12, 6))
+
 
 plt.subplot(1, 2, 1)
 plt.title(f"Confidence-accuracy {args.name} {args.acquisition}  {covariance_str}")
@@ -75,7 +78,7 @@ plt.subplot(1, 2, 2)
 plt.title(f"Confidence-count {args.name} {args.acquisition} {covariance_str}")
 df = pd.DataFrame(count_conf, columns=['Confidence level', 'Count', 'Estimator'])
 sns.lineplot('Confidence level', 'Count', data=df, hue='Estimator')
-plt.savefig(f"data/conf_accuracy_{args.name}_{args.acquisition}{covariance_str}", dpi=150)
+plt.savefig(f"data/conf{resnet_str}_accuracy_{args.name}_{args.acquisition}{covariance_str}", dpi=150)
 # plt.savefig(f"data/conf_count_{args.name}_{args.acquisition}", dpi=150)
 plt.show()
 
