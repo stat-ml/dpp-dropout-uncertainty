@@ -1,31 +1,21 @@
 import os
 import pickle
 from argparse import ArgumentParser
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
 import torch
-from torch.utils.data import TensorDataset, DataLoader
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import roc_curve, roc_auc_score
-from scipy.special import softmax
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
 from catalyst.dl import SupervisedRunner
 from catalyst.dl.callbacks import AccuracyCallback, EarlyStoppingCallback
 from catalyst.utils import set_global_seed
 
-from alpaca.active_learning.simple_update import entropy
-from alpaca.uncertainty_estimator import build_estimator
-from alpaca.uncertainty_estimator.masks import DEFAULT_MASKS
 from alpaca.uncertainty_estimator.bald import bald as bald_score
 
 from configs import base_config, experiment_config
-from classification_active_learning import loader
+from deprecated.classification_active_learning import loader
 
 
 def parse_arguments():

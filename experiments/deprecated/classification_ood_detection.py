@@ -23,7 +23,7 @@ from alpaca.active_learning.simple_update import entropy
 
 from utils.fastai import ImageArrayDS
 from utils.visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn, prepare_fashion_mnist
-from classification_active_learning import build_model
+from deprecated.classification_active_learning import build_model
 
 
 """
