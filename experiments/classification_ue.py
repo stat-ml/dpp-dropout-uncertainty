@@ -45,7 +45,7 @@ def parse_arguments():
 
 
 def train(config, loaders, logdir, checkpoint=None):
-    model = config['model_class'](config['dropout_rate']).double()
+    model = config['model_class'](dropout_rate=config['dropout_rate']).double()
 
     if checkpoint is not None:
         model.load_state_dict(torch.load(checkpoint)['model_state_dict'])

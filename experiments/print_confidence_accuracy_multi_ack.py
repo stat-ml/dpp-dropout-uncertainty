@@ -26,14 +26,12 @@ covariance_str = '_covar' if args.covariance else ''
 
 
 
-method = 'ht_dpp'
+# method = 'ht_dpp'
 approaches = [
-    (method, 'var_ratio'),
-    (method, 'bald_n'),
-    (method, 'max_prob'),
-    # ('mc_dropout', 'var_ratio'),
-    # ('mc_dropout', 'bald_n'),
-    ('mc_dropout', 'max_prob'),
+    ('ensemble_max_prob', 'ensemble'),
+    ('mc_dropout', 'bald'),
+    ('ht_dpp', 'bald'),
+    ('ensemble_bald', 'ensemble'),
     ('max_prob', '')
 ]
 
@@ -60,7 +58,8 @@ for estimator_name, ack in approaches:
         with open(file_name, 'rb') as f:
             record = pickle.load(f)
 
-        prediction = np.argmax(record['probabilities'], axis=-1)
+        prediction = np.argmax(np.array(record['probabilities']), axis=-1)
+        # import ipdb; ipdb.set_trace()
         is_correct = (prediction == record['y_val']).astype(np.int)
 
         # bins = np.concatenate((np.arange(0, 0.9, 0.1), np.arange(0.9, 1, 0.01)))

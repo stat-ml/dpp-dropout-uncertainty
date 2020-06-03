@@ -22,7 +22,8 @@ base_config = {
 experiment_config = {
     'mnist': {
         'train_size': 1000,
-        'dropout_rate': 0.5
+        'dropout_rate': 0.5,
+        'n_models': 10
     },
     'svhn': {
         'prepare_dataset': prepare_svhn,
@@ -31,7 +32,8 @@ experiment_config = {
     },
     'cifar': {
         'prepare_dataset': prepare_cifar,
-        'model_class': resnet_masked,
+        'model_class': StrongConv,
+        'n_models': 10,
     }
 }
 
@@ -47,7 +49,7 @@ experiment_ood_config = {
     },
     'cifar': {
         'prepare_dataset': prepare_cifar,
-        'model_class': resnet_masked,
+        'model_class': StrongConv,
         'repeats': 3
     }
 }
