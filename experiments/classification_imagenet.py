@@ -54,7 +54,6 @@ def parse_arguments():
 
 
 def train(config, loaders, logdir, checkpoint=None):
-
     return model
 
 
@@ -64,7 +63,8 @@ def bench_uncertainty(model, val_loader, x_val_tensor, y_val, acquisition, confi
     # probabilities = softmax(logits, axis=-1)
     probabilities = get_probabilities(model, val_loader)
 
-    estimators = ['max_prob', 'mc_dropout', 'ht_dpp', 'cov_k_dpp']
+    # estimators = ['max_prob', 'mc_dropout', 'ht_dpp', 'cov_k_dpp']
+    estimators = ['mc_dropout']
 
     print(estimators)
 
@@ -72,7 +72,7 @@ def bench_uncertainty(model, val_loader, x_val_tensor, y_val, acquisition, confi
     for estimator_name in estimators:
         try:
             print(estimator_name)
-            ue = calc_ue(model, x_val_tensor, probabilities, estimator_name, nn_runs=150, acquisition=acquisition)
+            ue = calc_ue(model, x_val_tensor, val_loader, probabilities, estimator_name, nn_runs=config['nn_runs'], acquisition=acquisition)
             uncertainties[estimator_name] = ue
         except Exception as e:
             print(e)
@@ -84,13 +84,13 @@ def bench_uncertainty(model, val_loader, x_val_tensor, y_val, acquisition, confi
         'estimators': estimators,
     }
     covariance_str = '_covar' if config['covariance'] else ''
-    with open(logdir / f"ue_{config['acquisition']}{covariance_str}.pickle", 'wb') as f:
+    with open(logdir / f"ue_{config['acquisition']}{covariance_str}{downsample}.pickle", 'wb') as f:
         pickle.dump(record, f)
 
     return probabilities, uncertainties, estimators
 
 
-def calc_ue(model, datapoints, probabilities, estimator_type='max_prob', nn_runs=150, acquisition='bald'):
+def calc_ue(model, datapoints, val_loader, probabilities, estimator_type='max_prob', nn_runs=150, acquisition='bald'):
     if estimator_type == 'max_prob':
         ue = 1 - np.max(probabilities, axis=-1)
     elif estimator_type == 'max_entropy':
@@ -101,7 +101,8 @@ def calc_ue(model, datapoints, probabilities, estimator_type='max_prob', nn_runs
         estimator = build_estimator(
             'bald_masked', model, dropout_mask=estimator_type, num_classes=1000,
             nn_runs=nn_runs, keep_runs=True, acquisition=acquisition_param)
-        ue = estimator.estimate(torch.DoubleTensor(datapoints).cuda())
+        # ue = estimator.estimate(torch.DoubleTensor(datapoints).cuda())
+        ue = estimator.estimate(val_loader)
         probs = softmax(estimator.last_mcd_runs(), axis=-1)
         probs = np.mean(probs, axis=-2)
 
@@ -134,7 +135,6 @@ image_transforms = transforms.Compose([
 ])
 
 
-downsample = 500
 
 class ImageDataset(Dataset):
     def __init__(self, folder):
@@ -164,11 +164,14 @@ def get_data(config):
 
     dataset = ImageDataset(valid_folder)
     val_loader = DataLoader(dataset, batch_size=config['bs'])
+    val_loader.shape = (downsample, 3, 224, 224)
 
     return val_loader, y_val
 
 
 if __name__ == '__main__':
+    downsample = 100
+
     config = parse_arguments()
     set_global_seed(42)
     val_loader, y_val = get_data(config)

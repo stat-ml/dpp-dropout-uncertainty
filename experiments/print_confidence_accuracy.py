@@ -48,7 +48,7 @@ def print_confidence():
         if os.path.exists(ensemble_file):
             process_file(ensemble_file, args.acquisition, acc_conf, count_conf)
 
-        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}.pickle'
+        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}100.pickle'
         if os.path.exists(file_name):
             process_file(file_name, args.acquisition, acc_conf, count_conf)
 
@@ -87,7 +87,7 @@ def process_file(file_name, acquisition, acc_conf, count_conf):
     bins = np.concatenate((np.arange(0, 1, 0.1), [0.98, 0.99, 0.999]))
 
     for estimator in record['estimators']:
-        if estimator not in ['mc_dropout', 'max_prob', 'ht_dpp', 'ensemble_max_prob', 'cov_k_dpp']:
+        if estimator not in ['mc_dropout', 'max_prob', 'ht_dpp', 'ensemble_max_prob']:
             continue
 
         ue = record['uncertainties'][estimator]

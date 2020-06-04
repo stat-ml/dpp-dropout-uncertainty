@@ -37,7 +37,8 @@ experiment_config = {
     },
     'imagenet': {
         'dropout_rate': 0.3,
-        'repeats': 1
+        'repeats': 1,
+        'nn_runs': 20
     }
 }
 
