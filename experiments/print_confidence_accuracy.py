@@ -49,8 +49,10 @@ def print_confidence():
         file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}.pickle'
         process_file(file_name, args.acquisition, acc_conf, count_conf)
         file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}_covar.pickle'
-        process_file(file_name, args.acquisition, acc_conf, count_conf)
+        if os.path.exists(file_name):
+            process_file(file_name, args.acquisition, acc_conf, count_conf)
 
+    print(count_conf)
 
     plt.rcParams.update({'font.size': 14})
     plt.rc('grid', linestyle="--")
@@ -78,19 +80,18 @@ def process_file(file_name, acquisition, acc_conf, count_conf):
     prediction = np.argmax(np.array(record['probabilities']), axis=-1)
     is_correct = (prediction == record['y_val']).astype(np.int)
 
-    bins = np.concatenate((np.arange(0, 1, 0.1), [0.97]))
+    bins = np.concatenate((np.arange(0, 1, 0.1), [0.98, 0.99, 0.999]))
 
     for estimator in record['estimators']:
         if estimator not in ['mc_dropout', 'max_prob', 'ht_dpp', 'ensemble_max_prob', 'cov_k_dpp']:
             continue
 
-        print(record['uncertainties'].keys())
         ue = record['uncertainties'][estimator]
 
         if acquisition == 'bald':
             ue = ue / max(ue)
-        # print(estimator)
-        # print(min(ue), max(ue))
+        print(estimator)
+        print(min(ue), max(ue))
 
         for confidence_level in bins:
             point_confidences = 1 - ue

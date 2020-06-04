@@ -70,6 +70,7 @@ class ResNetMasked(ResNet):
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
+        import ipdb; ipdb.set_trace()
         if dropout_mask is not None:
             x = x * dropout_mask(x, dropout_rate, 0)
         else:
@@ -85,6 +86,15 @@ def resnet_masked(pretrained=True, dropout_rate=0.3):
     base.fc = nn.Linear(512, 10)
 
     return base
+
+
+def resnet_dropout(pretrained=True, dropout_rate=0.3):
+    base = resnet18(pretrained=pretrained)
+    base.dropout = nn.Dropout(dropout_rate)
+    # base.fc = nn.Linear(512, 10)
+
+    return base
+
 
 
 def _resnet(arch, block, layers, pretrained, progress, **kwargs):

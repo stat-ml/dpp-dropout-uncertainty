@@ -30,9 +30,9 @@ def process_file(file_name, count_conf):
     with open(file_name, 'rb') as f:
         record = pickle.load(f)
 
-    bins = np.concatenate((np.arange(0, 1, 0.1), [0.99]))
+    bins = np.concatenate((np.arange(0, 1, 0.1), [0.98, 0.99, 0.999]))
     for i, estimator in enumerate(record['estimators']):
-        if estimator not in ['mc_dropout', 'max_prob', 'ht_dpp', 'ensemble_max_prob']:
+        if estimator not in ['mc_dropout', 'max_prob', 'ht_dpp', 'ensemble_max_prob', 'cov_k_dpp']:
             continue
         ue = record['uncertainties'][estimator]
 
@@ -50,12 +50,13 @@ def process_file(file_name, count_conf):
 count_conf = []
 
 for i in range(args.repeats):
-    file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_ood_{acquisition_str}{covariance_str}.pickle'
-    process_file(file_name, count_conf)
     file_name = f'logs/classification/{args.name}_{i}/ue_ensemble_ood.pickle'
     process_file(file_name, count_conf)
-
-
+    file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_ood_{acquisition_str}{covariance_str}.pickle'
+    process_file(file_name, count_conf)
+    file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}_covar.pickle'
+    if os.path.exists(file_name):
+        process_file(file_name, count_conf)
 
 plt.rcParams.update({'font.size': 14})
 plt.rc('grid', linestyle="--")

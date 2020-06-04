@@ -10,7 +10,42 @@ import numpy as np
 from PIL import Image
 from sklearn.metrics import accuracy_score
 
+from models import resnet_dropout
+
 # datasets.ImageFolder
+
+
+
+def predict_valid():
+    parser = ArgumentParser()
+    parser.add_argument('--dataset-folder', type=str, default='data/imagenet')
+    parser.add_argument('--bs', type=int, default=64)
+    args = parser.parse_args()
+
+    label_file = Path(args.dataset_folder)/'val.txt'
+
+    with open(label_file, 'r') as f:
+        labels = list([int(line.split()[1]) for line in f.readlines()])
+
+    valid_folder = Path(args.dataset_folder) / 'valid'
+
+    dataset = ImageDataset(valid_folder)
+    loader = DataLoader(dataset, batch_size=args.bs)
+
+    # model = models.resnet18(pretrained=True)
+    model = resnet_dropout()
+    model.eval().cuda()
+
+    results = []
+
+    with torch.no_grad():
+        for i, batch in enumerate(loader):
+            print((i + 1) * args.bs)
+            probabilities = torch.softmax(model(batch.cuda()), dim=-1)
+            predictions = torch.argmax(probabilities, dim=-1)
+            results.extend(list(list(predictions.cpu().numpy())))
+    print(results)
+    print(accuracy_score(results, labels))
 
 
 def imshow(inp, title=None):
@@ -52,43 +87,5 @@ class ImageDataset(Dataset):
         return image
 
 
-def predict_valid():
-    parser = ArgumentParser()
-    parser.add_argument('--dataset-folder', type=str, default='data/imagenet')
-    parser.add_argument('--bs', type=int, default=64)
-    args = parser.parse_args()
-
-    label_file = Path(args.dataset_folder)/'val.txt'
-
-    with open(label_file, 'r') as f:
-        labels = list([int(line.split()[1]) for line in f.readlines()])
-
-    valid_folder = Path(args.dataset_folder) / 'valid'
-
-    dataset = ImageDataset(valid_folder)
-    loader = DataLoader(dataset, batch_size=args.bs)
-
-    model = models.resnet18(pretrained=True)
-    model.eval().cuda()
-
-    results = []
-
-    with torch.no_grad():
-        for i, batch in enumerate(loader):
-            print((i + 1) * args.bs)
-            probabilities = torch.softmax(model(batch.cuda()), dim=-1)
-            predictions = torch.argmax(probabilities, dim=-1)
-            results.extend(list(list(predictions.cpu().numpy())))
-    print(results)
-    print(accuracy_score(results, labels))
-
-
 if __name__ == '__main__':
     predict_valid()
-
-
-
-
-plt.scatter()
-
-
