@@ -45,9 +45,13 @@ def print_confidence():
 
     for i in range(args.repeats):
         ensemble_file = f'logs/classification/{args.name}_{i}/ue_ensemble.pickle'
-        process_file(ensemble_file, args.acquisition, acc_conf, count_conf)
+        if os.path.exists(ensemble_file):
+            process_file(ensemble_file, args.acquisition, acc_conf, count_conf)
+
         file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}.pickle'
-        process_file(file_name, args.acquisition, acc_conf, count_conf)
+        if os.path.exists(file_name):
+            process_file(file_name, args.acquisition, acc_conf, count_conf)
+
         file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}_covar.pickle'
         if os.path.exists(file_name):
             process_file(file_name, args.acquisition, acc_conf, count_conf)

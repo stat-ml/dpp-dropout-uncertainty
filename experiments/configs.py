@@ -34,6 +34,10 @@ experiment_config = {
         'prepare_dataset': prepare_cifar,
         'model_class': StrongConv,
         'n_models': 5,
+    },
+    'imagenet': {
+        'dropout_rate': 0.3,
+        'repeats': 1
     }
 }
 

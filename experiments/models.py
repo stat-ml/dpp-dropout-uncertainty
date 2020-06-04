@@ -70,7 +70,6 @@ class ResNetMasked(ResNet):
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
-        import ipdb; ipdb.set_trace()
         if dropout_mask is not None:
             x = x * dropout_mask(x, dropout_rate, 0)
         else:
