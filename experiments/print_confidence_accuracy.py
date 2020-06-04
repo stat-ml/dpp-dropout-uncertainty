@@ -21,6 +21,7 @@ def estimator_name(estimator):
         'ht_decorrelating': 'decorrelation',
         'ht_dpp': 'DPP',
         'ht_k_dpp': 'k-DPP',
+        'cov_k_dpp': 'k-DPP',
         'ensemble_max_prob': 'Ensemble'
     }[estimator]
 
@@ -43,17 +44,18 @@ def print_confidence():
     acquisition_str = 'bald' if args.acquisition == 'bald_n' else args.acquisition
 
     for i in range(args.repeats):
-        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}{covariance_str}.pickle'
-        process_file(file_name, args.acquisition, acc_conf, count_conf)
         ensemble_file = f'logs/classification/{args.name}_{i}/ue_ensemble.pickle'
         process_file(ensemble_file, args.acquisition, acc_conf, count_conf)
+        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}.pickle'
+        process_file(file_name, args.acquisition, acc_conf, count_conf)
+        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}_covar.pickle'
+        process_file(file_name, args.acquisition, acc_conf, count_conf)
 
 
     plt.rcParams.update({'font.size': 14})
+    plt.rc('grid', linestyle="--")
     plt.figure(figsize=(9, 5))
 
-
-    # plt.subplot(1, 2, 1)
     plt.title(f"Confidence-accuracy {args.name} {args.acquisition}  {covariance_str}")
     df = pd.DataFrame(acc_conf, columns=['Confidence level', 'Accuracy', 'Estimator'])
     sns.lineplot('Confidence level', 'Accuracy', data=df, hue='Estimator')
@@ -61,13 +63,7 @@ def print_confidence():
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.ylabel(r"Accuracy for samples, confidence > $\tau$")
     plt.xlabel(r"$\tau$")
-    # plt.savefig(f"data/conf_accuracy_{args.name}_{args.acquisition}", dpi=150)
-
-    # plt.subplot(1, 2, 2)
-    # # plt.figure(figsize=(8, 6))
-    # plt.title(f"Confidence-count {args.name} {args.acquisition} {covariance_str}")
-    # df = pd.DataFrame(count_conf, columns=['Confidence level', 'Count', 'Estimator'])
-    # sns.lineplot('Confidence level', 'Count', data=df, hue='Estimator')
+    plt.grid()
 
     plt.savefig(f"data/conf{resnet_str}_accuracy_{args.name}_{args.acquisition}{covariance_str}", dpi=150)
     plt.show()
@@ -82,12 +78,10 @@ def process_file(file_name, acquisition, acc_conf, count_conf):
     prediction = np.argmax(np.array(record['probabilities']), axis=-1)
     is_correct = (prediction == record['y_val']).astype(np.int)
 
-    # bins = np.concatenate((np.arange(0, 0.9, 0.1), np.arange(0.9, 1, 0.01)))
     bins = np.concatenate((np.arange(0, 1, 0.1), [0.97]))
 
     for estimator in record['estimators']:
-        if estimator not in ['mc_dropout', 'max_prob', 'ht_dpp', 'ensemble_max_prob']:
-            print('********************', estimator)
+        if estimator not in ['mc_dropout', 'max_prob', 'ht_dpp', 'ensemble_max_prob', 'cov_k_dpp']:
             continue
 
         print(record['uncertainties'].keys())

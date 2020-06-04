@@ -69,7 +69,8 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val, acquisitio
     probabilities = softmax(logits, axis=-1)
 
     if config['covariance']:
-        estimators = ['max_prob', 'cov_dpp', 'cov_k_dpp']
+        # estimators = ['max_prob', 'cov_dpp', 'cov_k_dpp']
+        estimators = ['cov_k_dpp']
     else:
         estimators = ['max_prob', *DEFAULT_MASKS]
 
@@ -171,7 +172,7 @@ if __name__ == '__main__':
     rocaucs = []
     for i in range(config['repeats']):
         set_global_seed(i + 42)
-        logdir = Path(f"logs/classification_resnet/{config['name']}_{i}")
+        logdir = Path(f"logs/classification/{config['name']}_{i}")
         print(logdir)
 
         possible_checkpoint = logdir / 'checkpoints' / 'best.pth'

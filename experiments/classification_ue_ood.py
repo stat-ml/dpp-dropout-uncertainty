@@ -43,7 +43,11 @@ def bench_uncertainty(model, model_checkpoint, ood_loader, x_ood, acquisition):
     logits = runner.predict_loader(model, ood_loader)
     probabilities = softmax(logits, axis=-1)
 
-    estimators = ['max_prob', *DEFAULT_MASKS]
+    if config['covariance']:
+        # estimators = ['max_prob', 'cov_dpp', 'cov_k_dpp']
+        estimators = ['cov_k_dpp']
+    else:
+        estimators = ['max_prob', *DEFAULT_MASKS]
 
     uncertainties = {}
     for estimator_name in estimators:
@@ -117,7 +121,7 @@ if __name__ == '__main__':
 
     for i in range(config['repeats']):
         set_global_seed(i + 42)
-        logdir = Path(f"logs/classification_resnet/{config['name']}_{i}")
+        logdir = Path(f"logs/classification/{config['name']}_{i}")
         print(logdir)
 
         possible_checkpoint = logdir / 'checkpoints' / 'best.pth'

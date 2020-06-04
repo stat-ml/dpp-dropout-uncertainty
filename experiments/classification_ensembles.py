@@ -16,51 +16,31 @@ from alpaca.uncertainty_estimator.bald import bald as bald_score
 
 from configs import base_config, experiment_config
 from deprecated.classification_active_learning import loader
+from classification_ue_ood import get_data as get_data_ood
+from classification_ue import get_data, train
 
 
 def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument('name')
     parser.add_argument('--acquisition', '-a', type=str, default='bald')
-    parser.add_argument('--covariance', dest='covariance', action='store_true')
+    parser.add_argument('--ood', dest='ood', action='store_true')
     args = parser.parse_args()
-
 
     config = deepcopy(base_config)
     config.update(experiment_config[args.name])
     config['name'] = args.name
     config['acquisition'] = args.acquisition
-    config['covariance'] = args.covariance
+    config['ood'] = args.ood
 
     return config
 
 
-def train(config, loaders, logdir, checkpoint=None):
-    model = config['model_class'](dropout_rate=config['dropout_rate']).double()
-
-    if checkpoint is not None:
-        model.load_state_dict(torch.load(checkpoint)['model_state_dict'])
-        model.eval()
-    else:
-        criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters())
-        callbacks = [AccuracyCallback(num_classes=10), EarlyStoppingCallback(config['patience'])]
-
-        runner = SupervisedRunner()
-        runner.train(
-            model, criterion, optimizer, loaders,
-            logdir=logdir, num_epochs=config['epochs'], verbose=True,
-            callbacks=callbacks
-        )
-
-    return model
-
-
-def bench_uncertainty(ensemble, x_val_tensor, y_val):
+def bench_uncertainty(ensemble, x_val_tensor, y_val, config):
     probabilities, max_prob, bald = ensemble.estimate(x_val_tensor)
     uncertainties = {
-        'ensemble_max_prob': max_prob,
-        'ensemble_bald': bald,
+        'ensemble_max_prob': np.array(max_prob),
+        'ensemble_bald': np.array(bald),
     }
     record = {
         'y_val': y_val,
@@ -69,39 +49,13 @@ def bench_uncertainty(ensemble, x_val_tensor, y_val):
         'estimators': list(uncertainties.keys()),
     }
 
-    with open(ensemble.logdir / f"ue_ensemble.pickle", 'wb') as f:
+    ood_str = '_ood' if config['ood'] else ''
+    with open(ensemble.logdir / f"ue_ensemble{ood_str}.pickle", 'wb') as f:
         pickle.dump(record, f)
-    #
-    # return probabilities, uncertainties, estimators
-
-
-def log_likelihood(probabilities, y):
-    try:
-        ll = np.mean(np.log(probabilities[np.arange(len(probabilities)), y]))
-    except FloatingPointError:
-        import ipdb; ipdb.set_trace()
-    return ll
-
-
-
-
-def get_data(config):
-    x_train, y_train, x_val, y_val, train_tfms = config['prepare_dataset'](config)
-
-    if len(x_train) > config['train_size']:
-        x_train, _, y_train, _ = train_test_split(
-            x_train, y_train, train_size=config['train_size'], stratify=y_train
-        )
-
-    loaders = OrderedDict({
-        'train': loader(x_train, y_train, config['batch_size'], tfms=train_tfms, train=True),
-        'valid': loader(x_val, y_val, config['batch_size'])
-    })
-    return loaders, x_train, y_train, x_val, y_val
 
 
 class Ensemble:
-    def __init__(self, logbase, n_models, start_i=0):
+    def __init__(self, logbase, n_models, config, loaders, start_i=0):
         self.models = []
         self.n_models = n_models
         self.logdir = Path(f"{logbase}/{config['name']}_{start_i}")
@@ -143,24 +97,20 @@ class Ensemble:
 if __name__ == '__main__':
     config = parse_arguments()
     set_global_seed(42)
-    loaders, x_train, y_train, x_val, y_val = get_data(config)
-    print(y_train[:5])
-    x_val_tensor = torch.cat([batch[0] for batch in loaders['valid']])
-
-    config['repeats'] = 3
     logbase = 'logs/classification_ensembles'
     n_models = config['n_models']
-    for j in range(config['repeats']):
-        ensemble = Ensemble(logbase, n_models, j * n_models)
-        bench_uncertainty(ensemble, x_val_tensor, y_val)
 
-    #     aucs = misclassfication_detection(y_val, probabilities, uncertainties, estimators)
-    #     rocaucs.extend(aucs)
-    #
-    # df = pd.DataFrame(rocaucs, columns=['Estimator', 'ROC-AUCs'])
-    # df.to_csv(f"logs/{config['name']}_{config['acquisition']}.csv")
-    # plt.figure(figsize=(9, 6))
-    # plt.title(f"Error detection for {config['name']}")
-    # sns.boxplot('Estimator', 'ROC-AUCs', data=df)
-    # plt.savefig(f"data/ed/{config['name']}_bn.png", dpi=150)
-    # plt.show()
+    if config['ood']:
+        loaders, ood_loader, x_train, y_train, x_val, y_val, x_ood, y_ood = get_data_ood(config)
+        x_ood_tensor = torch.cat([batch[0] for batch in ood_loader])
+        for j in range(config['repeats']):
+            ensemble = Ensemble(logbase, n_models, config, loaders, j * n_models)
+            bench_uncertainty(ensemble, x_ood_tensor, y_val, config)
+    else:
+        loaders, x_train, y_train, x_val, y_val = get_data(config)
+        x_val_tensor = torch.cat([batch[0] for batch in loaders['valid']])
+
+        for j in range(config['repeats']):
+            ensemble = Ensemble(logbase, n_models, config, loaders, j * n_models)
+            bench_uncertainty(ensemble, x_val_tensor, y_val, config)
+

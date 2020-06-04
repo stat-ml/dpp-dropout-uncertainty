@@ -33,7 +33,7 @@ experiment_config = {
     'cifar': {
         'prepare_dataset': prepare_cifar,
         'model_class': StrongConv,
-        'n_models': 10,
+        'n_models': 5,
     }
 }
 

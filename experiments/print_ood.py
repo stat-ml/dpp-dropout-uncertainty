@@ -19,23 +19,20 @@ args = parser.parse_args()
 
 print(args)
 
-count_conf = []
 resnet_str = '_resnet' if args.resnet else ''
 covariance_str = '_covar' if args.covariance else ''
 acquisition_str = 'bald' if args.acquisition == 'bald_n' else args.acquisition
 
-for i in range(args.repeats):
-    file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_ood_{acquisition_str}{covariance_str}.pickle'
+
+def process_file(file_name, count_conf):
     print(file_name)
 
     with open(file_name, 'rb') as f:
         record = pickle.load(f)
 
-    # bins = np.concatenate((np.arange(0, 0.9, 0.1), np.arange(0.9, 1, 0.01)))
-    # bins = np.arange(0, 1, 0.1)
     bins = np.concatenate((np.arange(0, 1, 0.1), [0.99]))
     for i, estimator in enumerate(record['estimators']):
-        if estimator in ['max_entropy', 'ht_k_dpp', 'ht_decorrelating']:
+        if estimator not in ['mc_dropout', 'max_prob', 'ht_dpp', 'ensemble_max_prob']:
             continue
         ue = record['uncertainties'][estimator]
 
@@ -46,26 +43,22 @@ for i in range(args.repeats):
 
         for confidence_level in bins:
             point_confidences = 1 - ue
-            # bin_correct = is_correct[point_confidences > confidence_level]
-            # if len(bin_correct) > 0:
-            #     accuracy = sum(bin_correct) / len(bin_correct)
-            # else:
-            #     accuracy = None
-
             level_count = np.sum(point_confidences > confidence_level)
             count_conf.append((confidence_level, level_count, estimator_name(estimator)))
-#
-#
-# plt.figure(figsize=(12, 6))
-#
-# plt.subplot(1, 2, 1)
-# plt.title(f"Confidence-accuracy {args.name} {args.acquisition}  {covariance_str}")
-# df = pd.DataFrame(acc_conf, columns=['Confidence level', 'Accuracy', 'Estimator'])
-# sns.lineplot('Confidence level', 'Accuracy', data=df, hue='Estimator')
-# # plt.savefig(f"data/conf_accuracy_{args.name}_{args.acquisition}", dpi=150)
-#
-# plt.subplot(1, 2, 2)
+
+
+count_conf = []
+
+for i in range(args.repeats):
+    file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_ood_{acquisition_str}{covariance_str}.pickle'
+    process_file(file_name, count_conf)
+    file_name = f'logs/classification/{args.name}_{i}/ue_ensemble_ood.pickle'
+    process_file(file_name, count_conf)
+
+
+
 plt.rcParams.update({'font.size': 14})
+plt.rc('grid', linestyle="--")
 plt.figure(figsize=(9, 5))
 plt.title(f"Confidence-count for OOD {args.name} {args.acquisition} {covariance_str}")
 df = pd.DataFrame(count_conf, columns=['Confidence level', 'Count', 'Estimator'])
@@ -74,6 +67,7 @@ plt.subplots_adjust(right=0.7)
 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 plt.ylabel(r"Number of samples, confidence > $\tau$")
 plt.xlabel(r"$\tau$")
+plt.grid()
 plt.savefig(f"data/conf_ood{resnet_str}_{args.name}_{args.acquisition}{covariance_str}", dpi=150)
 plt.show()
 
