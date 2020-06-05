@@ -48,7 +48,7 @@ def print_confidence():
         if os.path.exists(ensemble_file):
             process_file(ensemble_file, args.acquisition, acc_conf, count_conf, ['ensemble_max_prob'])
 
-        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}.pickle'
+        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}5000.pickle'
         if os.path.exists(file_name):
             process_file(file_name, args.acquisition, acc_conf, count_conf, ['mc_dropout', 'max_prob', 'ht_dpp'])
 
@@ -56,11 +56,9 @@ def print_confidence():
         if os.path.exists(file_name):
             process_file(file_name, args.acquisition, acc_conf, count_conf, ['cov_k_dpp'])
 
-    print(count_conf)
-
-    plt.rcParams.update({'font.size': 14})
+    plt.rcParams.update({'font.size': 12})
     plt.rc('grid', linestyle="--")
-    plt.figure(figsize=(9, 5))
+    plt.figure(figsize=(7, 5))
 
     if args.acquisition == 'bald':
         metric = 'UE'
@@ -70,8 +68,8 @@ def print_confidence():
     plt.title(f"{metric}-accuracy {args.name} {args.acquisition}  {covariance_str}")
     df = pd.DataFrame(acc_conf, columns=[f'{metric} level', 'Accuracy', 'Estimator'])
     sns.lineplot(f'{metric} level', 'Accuracy', data=df, hue='Estimator')
-    plt.subplots_adjust(right=0.7)
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    # plt.subplots_adjust(right=0.7)
+    # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.ylabel(fr"Accuracy for samples, {metric} > $\tau$")
     plt.xlabel(r"$\tau$")
     plt.grid()
@@ -126,22 +124,23 @@ def process_file_bald(file_name, acquisition, acc_conf, count_conf, methods):
     is_correct = (prediction == record['y_val']).astype(np.int)
 
     # bins = np.concatenate((np.arange(0, 1, 0.1), [0.98, 0.99, 0.999]))
+    max_ue = 1.4 if 'mnist' in file_name else 1
 
     ## find max ue
-    max_ue = 0
-    for estimator in record['uncertainties'].keys():
-        if estimator not in methods:
-            continue
-        max_ue = max(max_ue, max(record['uncertainties'][estimator]))
+    # max_ue = 0
+    # for estimator in record['uncertainties'].keys():
+    #     if estimator not in methods:
+    #         continue
+    #     max_ue = max(max_ue, max(record['uncertainties'][estimator]))
 
-    print(max_ue)
 
-    bins = np.arange(0, max_ue, 0.02)
-
+    bins = np.arange(0, max_ue, 0.1)
+    print(bins)
     # for estimator in record['estimators']:
     for estimator in record['uncertainties'].keys():
         if estimator not in methods:
             continue
+        print(estimator)
 
         ue = record['uncertainties'][estimator]
 
@@ -150,6 +149,7 @@ def process_file_bald(file_name, acquisition, acc_conf, count_conf, methods):
 
         for ue_level in bins:
             bin_correct = is_correct[ue < ue_level]
+
             if len(bin_correct) > 0:
                 accuracy = sum(bin_correct) / len(bin_correct)
             else:
