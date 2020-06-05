@@ -22,7 +22,8 @@ def estimator_name(estimator):
         'ht_dpp': 'DPP',
         'ht_k_dpp': 'k-DPP',
         'cov_k_dpp': 'k-DPP',
-        'ensemble_max_prob': 'Ensemble'
+        'ensemble_max_prob': 'Ensemble',
+        'ensemble_bald': 'Ensemble'
     }[estimator]
 
 
@@ -44,19 +45,19 @@ def print_confidence():
     acquisition_str = 'bald' if args.acquisition == 'bald_n' else args.acquisition
 
     for i in range(args.repeats):
-        ensemble_file = f'logs/classification/{args.name}_{i}/ue_ensemble.pickle'
-        if os.path.exists(ensemble_file):
-            process_file(ensemble_file, args.acquisition, acc_conf, count_conf, ['ensemble_max_prob'])
+        # ensemble_file = f'logs/classification/{args.name}_{i}/ue_ensemble.pickle'
+        # if os.path.exists(ensemble_file):
+        #     process_file(ensemble_file, args.acquisition, acc_conf, count_conf, ['ensemble_max_prob'])
 
-        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}5000.pickle'
+        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}.pickle'
         if os.path.exists(file_name):
-            process_file(file_name, args.acquisition, acc_conf, count_conf, ['mc_dropout', 'max_prob', 'ht_dpp'])
+            process_file(file_name, args.acquisition, acc_conf, count_conf, ['mc_dropout', 'ht_dpp'])
 
         file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}_covar.pickle'
         if os.path.exists(file_name):
             process_file(file_name, args.acquisition, acc_conf, count_conf, ['cov_k_dpp'])
 
-    plt.rcParams.update({'font.size': 12})
+    plt.rcParams.update({'font.size': 13})
     plt.rc('grid', linestyle="--")
     plt.figure(figsize=(7, 5))
 
@@ -70,7 +71,8 @@ def print_confidence():
     sns.lineplot(f'{metric} level', 'Accuracy', data=df, hue='Estimator')
     # plt.subplots_adjust(right=0.7)
     # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.ylabel(fr"Accuracy for samples, {metric} > $\tau$")
+    sign = '<' if args.acquisition == 'bald' else '<'
+    plt.ylabel(fr"Accuracy for samples, {metric} {sign} $\tau$")
     plt.xlabel(r"$\tau$")
     plt.grid()
 
@@ -134,7 +136,7 @@ def process_file_bald(file_name, acquisition, acc_conf, count_conf, methods):
     #     max_ue = max(max_ue, max(record['uncertainties'][estimator]))
 
 
-    bins = np.arange(0, max_ue, 0.1)
+    bins = np.concatenate(([0, 0.01, 0.02, 0.03, 0.04, 0.05], np.arange(0.1, max_ue, 0.1)))
     print(bins)
     # for estimator in record['estimators']:
     for estimator in record['uncertainties'].keys():

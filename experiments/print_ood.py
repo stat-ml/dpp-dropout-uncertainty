@@ -24,15 +24,20 @@ covariance_str = '_covar' if args.covariance else ''
 acquisition_str = 'bald' if args.acquisition == 'bald_n' else args.acquisition
 
 
-def process_file(file_name, count_conf):
+def process_file(file_name, count_conf, args, methods):
     print(file_name)
 
     with open(file_name, 'rb') as f:
         record = pickle.load(f)
 
+
+    if args.acquisition == 'bald':
+        process_file_bald(count_conf, record, methods)
+        return
+
     bins = np.concatenate((np.arange(0, 1, 0.1), [0.98, 0.99, 0.999]))
     for i, estimator in enumerate(record['estimators']):
-        if estimator not in ['mc_dropout', 'max_prob', 'ht_dpp', 'ensemble_max_prob', 'cov_k_dpp']:
+        if estimator not in methods:
             continue
         ue = record['uncertainties'][estimator]
 
@@ -47,27 +52,55 @@ def process_file(file_name, count_conf):
             count_conf.append((confidence_level, level_count, estimator_name(estimator)))
 
 
+def process_file_bald(count_conf, record, methods):
+    # bins = np.concatenate((np.arange(0, 1, 0.1), [0.98, 0.99, 0.999]))
+
+    max_ue = 1.4 if 'mnist' in file_name else 1
+    bins = np.concatenate(([0,  0.02, 0.04, 0.06], np.arange(0.1, max_ue, 0.1)))
+
+    for i, estimator in enumerate(record['estimators']):
+        if estimator not in methods:
+            continue
+        ue = record['uncertainties'][estimator]
+
+        print(estimator)
+        print(min(ue), max(ue))
+        if args.acquisition == 'bald':
+            ue = ue / max(ue)
+
+        for ue_level in bins:
+            level_count = np.sum(ue < ue_level)
+            count_conf.append((ue_level, level_count, estimator_name(estimator)))
+
+
 count_conf = []
 
 for i in range(args.repeats):
-    file_name = f'logs/classification/{args.name}_{i}/ue_ensemble_ood.pickle'
-    process_file(file_name, count_conf)
+    # file_name = f'logs/classification/{args.name}_{i}/ue_ensemble_ood.pickle'
+    # process_file(file_name, count_conf, args, ['ensemble_bald'])
     file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_ood_{acquisition_str}{covariance_str}.pickle'
-    process_file(file_name, count_conf)
+    process_file(file_name, count_conf, args, ['mc_dropout', 'ht_dpp'])
     file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}_covar.pickle'
     if os.path.exists(file_name):
-        process_file(file_name, count_conf)
+        process_file(file_name, count_conf, args, ['cov_k_dpp'])
 
-plt.rcParams.update({'font.size': 14})
+if args.acquisition == 'bald':
+    metric = 'UE'
+else:
+    metric = 'Confidence'
+
+plt.rcParams.update({'font.size': 13})
 plt.rc('grid', linestyle="--")
-plt.figure(figsize=(9, 5))
-plt.title(f"Confidence-count for OOD {args.name} {args.acquisition} {covariance_str}")
-df = pd.DataFrame(count_conf, columns=['Confidence level', 'Count', 'Estimator'])
-sns.lineplot('Confidence level', 'Count', data=df, hue='Estimator')
-plt.subplots_adjust(right=0.7)
-plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-plt.ylabel(r"Number of samples, confidence > $\tau$")
-plt.xlabel(r"$\tau$")
+plt.figure(figsize=(7, 5))
+plt.title(f"{metric}-count for OOD {args.name} {args.acquisition} {covariance_str}")
+df = pd.DataFrame(count_conf, columns=[f'{metric} level', 'Count', 'Estimator'])
+sns.lineplot(f'{metric} level', 'Count', data=df, hue='Estimator')
+# plt.subplots_adjust(right=0.7)
+# plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+sign = '<' if args.acquisition == 'bald' else '>'
+plt.ylabel(rf"Number of samples, {metric} {sign} $\tau$")
+plt.xlabel(rf"$\tau$")
 plt.grid()
 plt.savefig(f"data/conf_ood{resnet_str}_{args.name}_{args.acquisition}{covariance_str}", dpi=150)
 plt.show()

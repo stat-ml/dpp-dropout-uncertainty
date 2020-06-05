@@ -56,9 +56,13 @@ def parse_arguments():
 def train(config, loaders, logdir, checkpoint=None):
     return model
 
+
 from time import time
 
+
 def bench_uncertainty(model, val_loader, x_val_tensor, y_val, acquisition, config):
+    covariance_str = '_covar' if config['covariance'] else ''
+    print(logdir / f"ue_{config['acquisition']}{covariance_str}{downsample}.pickle")
     # runner = SupervisedRunner()
     # logits = runner.predict_loader(model, val_loader)
     # probabilities = softmax(logits, axis=-1)
@@ -88,7 +92,6 @@ def bench_uncertainty(model, val_loader, x_val_tensor, y_val, acquisition, confi
         'estimators': estimators,
         'times': times
     }
-    covariance_str = '_covar' if config['covariance'] else ''
     with open(logdir / f"ue_{config['acquisition']}{covariance_str}{downsample}.pickle", 'wb') as f:
         pickle.dump(record, f)
 
@@ -175,7 +178,7 @@ def get_data(config):
 
 
 if __name__ == '__main__':
-    downsample = 5_000
+    downsample = 2_000
 
     config = parse_arguments()
     set_global_seed(42)
