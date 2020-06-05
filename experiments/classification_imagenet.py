@@ -56,6 +56,7 @@ def parse_arguments():
 def train(config, loaders, logdir, checkpoint=None):
     return model
 
+from time import time
 
 def bench_uncertainty(model, val_loader, x_val_tensor, y_val, acquisition, config):
     # runner = SupervisedRunner()
@@ -63,16 +64,19 @@ def bench_uncertainty(model, val_loader, x_val_tensor, y_val, acquisition, confi
     # probabilities = softmax(logits, axis=-1)
     probabilities = get_probabilities(model, val_loader)
 
-    # estimators = ['max_prob', 'mc_dropout', 'ht_dpp', 'cov_k_dpp']
-    estimators = ['mc_dropout']
+    estimators = ['max_prob', 'mc_dropout', 'ht_dpp', 'cov_k_dpp']
 
     print(estimators)
 
     uncertainties = {}
+    times = {}
     for estimator_name in estimators:
         try:
             print(estimator_name)
-            ue = calc_ue(model, x_val_tensor, val_loader, probabilities, estimator_name, nn_runs=config['nn_runs'], acquisition=acquisition)
+            t0 = time()
+            ue = calc_ue(model, x_val_tensor, val_loader, probabilities, config['dropout_rate'], estimator_name, nn_runs=config['nn_runs'], acquisition=acquisition)
+            times[estimator_name] = time() - t0
+            print('time', time() - t0)
             uncertainties[estimator_name] = ue
         except Exception as e:
             print(e)
@@ -82,6 +86,7 @@ def bench_uncertainty(model, val_loader, x_val_tensor, y_val, acquisition, confi
         'uncertainties': uncertainties,
         'probabilities': probabilities,
         'estimators': estimators,
+        'times': times
     }
     covariance_str = '_covar' if config['covariance'] else ''
     with open(logdir / f"ue_{config['acquisition']}{covariance_str}{downsample}.pickle", 'wb') as f:
@@ -90,7 +95,7 @@ def bench_uncertainty(model, val_loader, x_val_tensor, y_val, acquisition, confi
     return probabilities, uncertainties, estimators
 
 
-def calc_ue(model, datapoints, val_loader, probabilities, estimator_type='max_prob', nn_runs=150, acquisition='bald'):
+def calc_ue(model, datapoints, val_loader, probabilities, dropout_rate, estimator_type='max_prob', nn_runs=150, acquisition='bald'):
     if estimator_type == 'max_prob':
         ue = 1 - np.max(probabilities, axis=-1)
     elif estimator_type == 'max_entropy':
@@ -100,8 +105,9 @@ def calc_ue(model, datapoints, val_loader, probabilities, estimator_type='max_pr
 
         estimator = build_estimator(
             'bald_masked', model, dropout_mask=estimator_type, num_classes=1000,
-            nn_runs=nn_runs, keep_runs=True, acquisition=acquisition_param)
-        # ue = estimator.estimate(torch.DoubleTensor(datapoints).cuda())
+            nn_runs=nn_runs, keep_runs=True, acquisition=acquisition_param,
+            dropout_rate=dropout_rate
+        )
         ue = estimator.estimate(val_loader)
         probs = softmax(estimator.last_mcd_runs(), axis=-1)
         probs = np.mean(probs, axis=-2)
@@ -121,7 +127,6 @@ def get_probabilities(model, loader):
         for i, batch in enumerate(loader):
             print(i)
             probabilities = torch.softmax(model(batch.cuda()), dim=-1)
-            # predictions = torch.argmax(probabilities, dim=-1)
             results.extend(list(probabilities.cpu().numpy()))
     return np.array(results)
 
@@ -170,7 +175,7 @@ def get_data(config):
 
 
 if __name__ == '__main__':
-    downsample = 100
+    downsample = 5_000
 
     config = parse_arguments()
     set_global_seed(42)

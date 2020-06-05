@@ -15,7 +15,7 @@ base_config = {
     'patience': 3,
     'batch_size': 128,
     'repeats': 3,
-    'dropout_rate': 0.3
+    'dropout_rate': 0.5
 }
 
 
@@ -36,9 +36,9 @@ experiment_config = {
         'n_models': 5,
     },
     'imagenet': {
-        'dropout_rate': 0.3,
+        'dropout_rate': 0.5,
         'repeats': 1,
-        'nn_runs': 20
+        'nn_runs': 100
     }
 }
 
