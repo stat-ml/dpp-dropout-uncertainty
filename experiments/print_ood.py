@@ -95,7 +95,7 @@ plt.figure(figsize=(7, 5))
 plt.title(f"{metric}-count for OOD {args.name} {args.acquisition} {covariance_str}")
 df = pd.DataFrame(count_conf, columns=[f'{metric} level', 'Count', 'Estimator'])
 sns.lineplot(f'{metric} level', 'Count', data=df, hue='Estimator')
-# plt.subplots_adjust(right=0.7)
+plt.subplots_adjust(left=0.15)
 # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
 sign = '<' if args.acquisition == 'bald' else '>'

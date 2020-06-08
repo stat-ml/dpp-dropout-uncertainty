@@ -15,7 +15,7 @@ base_config = {
     'patience': 3,
     'batch_size': 128,
     'repeats': 3,
-    'dropout_rate': 0.5
+    'dropout_rate': 0.5,
 }
 
 
@@ -23,17 +23,12 @@ experiment_config = {
     'mnist': {
         'train_size': 1000,
         'dropout_rate': 0.5,
-        'n_models': 10
-    },
-    'svhn': {
-        'prepare_dataset': prepare_svhn,
-        'model_class': StrongConv,
-        'repeats': 5,
+        'n_models': 20
     },
     'cifar': {
         'prepare_dataset': prepare_cifar,
         'model_class': StrongConv,
-        'n_models': 5,
+        'n_models': 20,
     },
     'imagenet': {
         'dropout_rate': 0.5,

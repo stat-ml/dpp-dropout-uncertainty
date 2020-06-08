@@ -71,7 +71,7 @@ class Ensemble:
             else:
                 checkpoint = None
 
-            self.models.append(train(config, loaders, logdir, checkpoint))
+            # self.models.append(train(config, loaders, logdir, checkpoint))
 
     def estimate(self, X_pool):
         mcd_realizations = torch.zeros((len(X_pool), self.n_models, 10))
@@ -112,5 +112,5 @@ if __name__ == '__main__':
 
         for j in range(config['repeats']):
             ensemble = Ensemble(logbase, n_models, config, loaders, j * n_models)
-            bench_uncertainty(ensemble, x_val_tensor, y_val, config)
+            # bench_uncertainty(ensemble, x_val_tensor, y_val, config)
 

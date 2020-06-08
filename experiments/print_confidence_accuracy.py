@@ -49,13 +49,15 @@ def print_confidence():
         # if os.path.exists(ensemble_file):
         #     process_file(ensemble_file, args.acquisition, acc_conf, count_conf, ['ensemble_max_prob'])
 
-        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}.pickle'
-        if os.path.exists(file_name):
-            process_file(file_name, args.acquisition, acc_conf, count_conf, ['mc_dropout', 'ht_dpp'])
 
-        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}_covar.pickle'
+        num = '5000' if args.name == 'imagenet' else ''
+        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}{num}.pickle'
         if os.path.exists(file_name):
-            process_file(file_name, args.acquisition, acc_conf, count_conf, ['cov_k_dpp'])
+            process_file(file_name, args.acquisition, acc_conf, count_conf, ['mc_dropout', 'ht_dpp', 'cov_k_dpp'])
+
+        # file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}_covar.pickle'
+        # if os.path.exists(file_name):
+        #     process_file(file_name, args.acquisition, acc_conf, count_conf, ['cov_k_dpp'])
 
     plt.rcParams.update({'font.size': 13})
     plt.rc('grid', linestyle="--")
@@ -84,7 +86,6 @@ def process_file(file_name, acquisition, acc_conf, count_conf, methods):
     if acquisition == 'bald':
         process_file_bald(file_name, acquisition, acc_conf, count_conf, methods)
         return
-    print(file_name)
 
     with open(file_name, 'rb') as f:
         record = pickle.load(f)
@@ -103,6 +104,7 @@ def process_file(file_name, acquisition, acc_conf, count_conf, methods):
 
         print(estimator)
         print(min(ue), max(ue))
+        ue = ue / max(ue)
 
         for confidence_level in bins:
             point_confidences = 1 - ue
@@ -126,7 +128,12 @@ def process_file_bald(file_name, acquisition, acc_conf, count_conf, methods):
     is_correct = (prediction == record['y_val']).astype(np.int)
 
     # bins = np.concatenate((np.arange(0, 1, 0.1), [0.98, 0.99, 0.999]))
-    max_ue = 1.4 if 'mnist' in file_name else 1
+    if 'mnist' in file_name:
+        max_ue = 1.4
+    elif 'cifar' in file_name:
+        max_ue = 1
+    else:
+        max_ue = 3
 
     ## find max ue
     # max_ue = 0
@@ -137,6 +144,7 @@ def process_file_bald(file_name, acquisition, acc_conf, count_conf, methods):
 
 
     bins = np.concatenate(([0, 0.01, 0.02, 0.03, 0.04, 0.05], np.arange(0.1, max_ue, 0.1)))
+    bins = np.concatenate(([0], np.arange(0.1, max_ue, 0.1)))
     print(bins)
     # for estimator in record['estimators']:
     for estimator in record['uncertainties'].keys():
@@ -159,6 +167,8 @@ def process_file_bald(file_name, acquisition, acc_conf, count_conf, methods):
 
             acc_conf.append((ue_level, accuracy, estimator_name(estimator)))
             count_conf.append((ue_level, len(bin_correct), estimator_name(estimator)))
+        print(ue)
+        print(acc_conf)
 
 
 if __name__ == '__main__':
