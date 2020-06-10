@@ -16,12 +16,13 @@ base_config = {
     'batch_size': 128,
     'repeats': 3,
     'dropout_rate': 0.5,
+    'nn_runs': 100
 }
 
 
 experiment_config = {
     'mnist': {
-        'train_size': 1000,
+        'train_size': 500,
         'dropout_rate': 0.5,
         'n_models': 20
     },
@@ -33,13 +34,12 @@ experiment_config = {
     'imagenet': {
         'dropout_rate': 0.5,
         'repeats': 1,
-        'nn_runs': 100
     }
 }
 
 experiment_ood_config = {
     'mnist': {
-        'train_size': 1000,
+        'train_size': 500,
         'ood_dataset': prepare_mnist
     },
     'svhn': {

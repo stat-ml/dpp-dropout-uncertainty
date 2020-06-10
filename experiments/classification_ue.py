@@ -29,15 +29,12 @@ def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument('name')
     parser.add_argument('--acquisition', '-a', type=str, default='bald')
-    parser.add_argument('--covariance', dest='covariance', action='store_true')
     args = parser.parse_args()
-
 
     config = deepcopy(base_config)
     config.update(experiment_config[args.name])
     config['name'] = args.name
     config['acquisition'] = args.acquisition
-    config['covariance'] = args.covariance
 
     return config
 
@@ -68,24 +65,25 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val, acquisitio
     logits = runner.predict_loader(model, loaders['valid'])
     probabilities = softmax(logits, axis=-1)
 
-    if config['covariance']:
-        # estimators = ['max_prob', 'cov_dpp', 'cov_k_dpp']
-        estimators = ['cov_k_dpp']
+    if config['acquisition'] in ['bald', 'var_ratio']:
+        estimators = ['mc_dropout', 'ht_dpp', 'ht_k_dpp', 'cov_dpp', 'cov_k_dpp']
+    elif config['acquisition'] == 'max_prob':
+        estimators = ['max_prob', 'mc_dropout', 'ht_dpp', 'ht_k_dpp', 'cov_dpp', 'cov_k_dpp']
     else:
-        estimators = ['max_prob', *DEFAULT_MASKS]
+        raise ValueError
 
     print(estimators)
 
     uncertainties = {}
     lls = {}
     for estimator_name in estimators:
-        try:
-            print(estimator_name)
-            ue, ll = calc_ue(model, x_val, y_val, probabilities, estimator_name, nn_runs=150, acquisition=acquisition)
-            uncertainties[estimator_name] = ue
-            lls[estimator_name] = ll
-        except Exception as e:
-            print(e)
+        # try:
+        print(estimator_name)
+        ue, ll = calc_ue(model, x_val, y_val, probabilities, estimator_name, nn_runs=config['nn_runs'], acquisition=acquisition)
+        uncertainties[estimator_name] = ue
+        lls[estimator_name] = ll
+        # except Exception as e:
+        #     print(e)
 
     record = {
         'checkpoint': model_checkpoint,
@@ -96,8 +94,7 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val, acquisitio
         'estimators': estimators,
         'lls': lls
     }
-    covariance_str = '_covar' if config['covariance'] else ''
-    with open(logdir / f"ue_{config['acquisition']}{covariance_str}.pickle", 'wb') as f:
+    with open(logdir / f"ue_{config['acquisition']}.pickle", 'wb') as f:
         pickle.dump(record, f)
 
     return probabilities, uncertainties, estimators
@@ -111,7 +108,7 @@ def log_likelihood(probabilities, y):
     return ll
 
 
-def calc_ue(model, datapoints, y_val, probabilities, estimator_type='max_prob', nn_runs=150, acquisition='bald'):
+def calc_ue(model, datapoints, y_val, probabilities, estimator_type='max_prob', nn_runs=100, acquisition='bald'):
     if estimator_type == 'max_prob':
         ue = 1 - np.max(probabilities, axis=-1)
         ll = log_likelihood(probabilities, y_val)
@@ -139,7 +136,7 @@ def calc_ue(model, datapoints, y_val, probabilities, estimator_type='max_prob', 
 def misclassfication_detection(y_val, probabilities, uncertainties, estimators):
     results = []
     predictions = np.argmax(probabilities, axis=-1)
-    errors = (predictions != y_val).astype(np.int)
+    errors = (predictions != y_val)
     for estimator_name in estimators:
         fpr, tpr, _ = roc_curve(errors, uncertainties[estimator_name])
         roc_auc = roc_auc_score(errors, uncertainties[estimator_name])
@@ -184,16 +181,7 @@ if __name__ == '__main__':
         model = train(config, loaders, logdir, checkpoint)
         x_val_tensor = torch.cat([batch[0] for batch in loaders['valid']])
 
-        probabilities, uncertainties, estimators = bench_uncertainty(
+        bench_uncertainty(
             model, checkpoint, loaders, x_val_tensor, y_val, config['acquisition'], config)
 
-        aucs = misclassfication_detection(y_val, probabilities, uncertainties, estimators)
-        rocaucs.extend(aucs)
 
-    df = pd.DataFrame(rocaucs, columns=['Estimator', 'ROC-AUCs'])
-    df.to_csv(f"logs/{config['name']}_{config['acquisition']}.csv")
-    plt.figure(figsize=(9, 6))
-    plt.title(f"Error detection for {config['name']}")
-    sns.boxplot('Estimator', 'ROC-AUCs', data=df)
-    plt.savefig(f"data/ed/{config['name']}_bn.png", dpi=150)
-    plt.show()

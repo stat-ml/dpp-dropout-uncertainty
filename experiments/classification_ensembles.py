@@ -37,10 +37,11 @@ def parse_arguments():
 
 
 def bench_uncertainty(ensemble, x_val_tensor, y_val, config):
-    probabilities, max_prob, bald = ensemble.estimate(x_val_tensor)
+    probabilities, max_prob, bald, var_ratio_ue = ensemble.estimate(x_val_tensor)
     uncertainties = {
         'ensemble_max_prob': np.array(max_prob),
         'ensemble_bald': np.array(bald),
+        'ensemble_var_ratio': np.array(var_ratio_ue)
     }
     record = {
         'y_val': y_val,
@@ -71,7 +72,7 @@ class Ensemble:
             else:
                 checkpoint = None
 
-            # self.models.append(train(config, loaders, logdir, checkpoint))
+            self.models.append(train(config, loaders, logdir, checkpoint))
 
     def estimate(self, X_pool):
         mcd_realizations = torch.zeros((len(X_pool), self.n_models, 10))
@@ -84,14 +85,22 @@ class Ensemble:
                 # mcd_realizations.append(prediction)
                 mcd_realizations[:, i, :] = torch.softmax(prediction, dim=-1)
 
-
         # mcd_realizations = torch.cat(mcd_realizations, dim=0)
         probabilities = mcd_realizations.mean(dim=1)
         max_class = torch.argmax(probabilities, dim=-1)
         max_prob_ens = mcd_realizations[np.arange(len(X_pool)), :, max_class]
         max_prob_ue = -max_prob_ens.mean(dim=-1) + 1
         bald = bald_score(mcd_realizations.numpy())
-        return probabilities, max_prob_ue, bald
+        var_ratio_ue = var_ratio_score(mcd_realizations, max_class, self.n_models)
+        return probabilities, max_prob_ue, bald, var_ratio_ue
+
+
+def var_ratio_score(mcd_realizations, max_class, n_models):
+    reps = max_class.unsqueeze(dim=-1).repeat(1, n_models)
+    tops = torch.argmax(mcd_realizations, axis=-1)
+    incorrects = (reps != tops).float()
+    ue = torch.sum(incorrects, dim=-1) / n_models
+    return ue
 
 
 if __name__ == '__main__':
@@ -112,5 +121,5 @@ if __name__ == '__main__':
 
         for j in range(config['repeats']):
             ensemble = Ensemble(logbase, n_models, config, loaders, j * n_models)
-            # bench_uncertainty(ensemble, x_val_tensor, y_val, config)
+            bench_uncertainty(ensemble, x_val_tensor, y_val, config)
 

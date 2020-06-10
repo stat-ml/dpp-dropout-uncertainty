@@ -8,19 +8,17 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from print_confidence_accuracy import estimator_name
 
-#
+
 parser = argparse.ArgumentParser()
 parser.add_argument('name', type=str)
 parser.add_argument('repeats', type=int)
 parser.add_argument('--acquisition', '-a', type=str, default='bald')
-parser.add_argument('--covariance', dest='covariance', action='store_true')
 parser.add_argument('--resnet', dest='resnet', action='store_true')
 args = parser.parse_args()
 
 print(args)
 
 resnet_str = '_resnet' if args.resnet else ''
-covariance_str = '_covar' if args.covariance else ''
 acquisition_str = 'bald' if args.acquisition == 'bald_n' else args.acquisition
 
 
@@ -29,7 +27,6 @@ def process_file(file_name, count_conf, args, methods):
 
     with open(file_name, 'rb') as f:
         record = pickle.load(f)
-
 
     if args.acquisition == 'bald':
         process_file_bald(count_conf, record, methods)
@@ -76,13 +73,14 @@ def process_file_bald(count_conf, record, methods):
 count_conf = []
 
 for i in range(args.repeats):
-    # file_name = f'logs/classification/{args.name}_{i}/ue_ensemble_ood.pickle'
-    # process_file(file_name, count_conf, args, ['ensemble_bald'])
-    file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_ood_{acquisition_str}{covariance_str}.pickle'
-    process_file(file_name, count_conf, args, ['mc_dropout', 'ht_dpp'])
-    file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}_covar.pickle'
+    ensemble_method = f"ensemble_{args.acquisition}"
+    file_name = f'logs/classification/{args.name}_{i}/ue_ensemble_ood.pickle'
     if os.path.exists(file_name):
-        process_file(file_name, count_conf, args, ['cov_k_dpp'])
+        process_file(file_name, count_conf, args, [ensemble_method])
+
+    file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_ood_{acquisition_str}.pickle'
+    process_file(file_name, count_conf, args, ['max_prob', 'mc_dropout', 'ht_dpp', 'ht_k_dpp', 'cov_dpp', 'cov_k_dpp'])
+
 
 if args.acquisition == 'bald':
     metric = 'UE'
@@ -92,7 +90,7 @@ else:
 plt.rcParams.update({'font.size': 13})
 plt.rc('grid', linestyle="--")
 plt.figure(figsize=(7, 5))
-plt.title(f"{metric}-count for OOD {args.name} {args.acquisition} {covariance_str}")
+plt.title(f"{metric}-count for OOD {args.name} {args.acquisition}")
 df = pd.DataFrame(count_conf, columns=[f'{metric} level', 'Count', 'Estimator'])
 sns.lineplot(f'{metric} level', 'Count', data=df, hue='Estimator')
 plt.subplots_adjust(left=0.15)
@@ -102,6 +100,6 @@ sign = '<' if args.acquisition == 'bald' else '>'
 plt.ylabel(rf"Number of samples, {metric} {sign} $\tau$")
 plt.xlabel(rf"$\tau$")
 plt.grid()
-plt.savefig(f"data/conf_ood{resnet_str}_{args.name}_{args.acquisition}{covariance_str}", dpi=150)
+plt.savefig(f"data/conf_ood{resnet_str}_{args.name}_{args.acquisition}", dpi=150)
 plt.show()
 

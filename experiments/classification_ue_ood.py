@@ -26,36 +26,35 @@ def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument('name')
     parser.add_argument('--acquisition', '-a', type=str, default='bald')
-    parser.add_argument('--covariance', dest='covariance', action='store_true')
     args = parser.parse_args()
 
     config = deepcopy(base_config)
     config.update(experiment_ood_config[args.name])
     config['name'] = args.name
     config['acquisition'] = args.acquisition
-    config['covariance'] = args.covariance
 
     return config
 
 
-def bench_uncertainty(model, model_checkpoint, ood_loader, x_ood, acquisition):
+def bench_uncertainty(model, model_checkpoint, ood_loader, x_ood, acquisition, nn_runs):
     runner = SupervisedRunner()
     logits = runner.predict_loader(model, ood_loader)
     probabilities = softmax(logits, axis=-1)
 
-    if config['covariance']:
-        # estimators = ['max_prob', 'cov_dpp', 'cov_k_dpp']
-        estimators = ['cov_k_dpp']
+    if config['acquisition'] in ['bald', 'var_ratio']:
+        estimators = ['mc_dropout', 'ht_dpp', 'ht_k_dpp', 'cov_dpp', 'cov_k_dpp']
+    elif config['acquisition'] == 'max_prob':
+        estimators = ['max_prob', 'mc_dropout', 'ht_dpp', 'ht_k_dpp', 'cov_dpp', 'cov_k_dpp']
     else:
-        estimators = ['max_prob', *DEFAULT_MASKS]
+        raise ValueError
+
 
     uncertainties = {}
     for estimator_name in estimators:
         print(estimator_name)
-        ue = calc_ue(model, x_ood, probabilities, estimator_name, nn_runs=150, acquisition=acquisition)
+        ue = calc_ue(model, x_ood, probabilities, estimator_name, nn_runs=nn_runs, acquisition=acquisition)
         uncertainties[estimator_name] = ue
         print(ue)
-
 
     record = {
         'checkpoint': model_checkpoint,
@@ -65,15 +64,14 @@ def bench_uncertainty(model, model_checkpoint, ood_loader, x_ood, acquisition):
         'estimators': estimators
     }
 
-    covariance_str = '_covar' if config['covariance'] else ''
-    file_name = logdir / f"ue_ood_{config['acquisition']}{covariance_str}.pickle"
+    file_name = logdir / f"ue_ood_{config['acquisition']}.pickle"
     with open(file_name, 'wb') as f:
         pickle.dump(record, f)
 
     return probabilities, uncertainties, estimators
 
 
-def calc_ue(model, datapoints, probabilities, estimator_type='max_prob', nn_runs=150, acquisition='bald'):
+def calc_ue(model, datapoints, probabilities, estimator_type='max_prob', nn_runs=100, acquisition='bald'):
     if estimator_type == 'max_prob':
         ue = 1 - np.max(probabilities, axis=-1)
     elif estimator_type == 'max_entropy':
@@ -135,5 +133,5 @@ if __name__ == '__main__':
         x_ood_tensor = torch.cat([batch[0] for batch in ood_loader])
 
         probabilities, uncertainties, estimators = bench_uncertainty(
-            model, checkpoint, ood_loader, x_ood_tensor, config['acquisition'])
+            model, checkpoint, ood_loader, x_ood_tensor, config['acquisition'], config['nn_runs'])
 

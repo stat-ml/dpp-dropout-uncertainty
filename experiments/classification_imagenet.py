@@ -1,8 +1,3 @@
-
-# datasets.ImageFolder
-
-
-
 import os
 import pickle
 from argparse import ArgumentParser
@@ -62,7 +57,7 @@ def bench_uncertainty(model, val_loader, y_val, acquisition, config):
     # runner = SupervisedRunner()
     # logits = runner.predict_loader(model, val_loader)
     # probabilities = softmax(logits, axis=-1)
-    probabilities = get_probabilities(model, val_loader)
+    probabilities = get_probabilities(model, val_loader).astype(np.single)
 
     estimators = ['max_prob', 'mc_dropout', 'ht_dpp', 'cov_k_dpp']
     # estimators = ['mc_dropout']
@@ -105,16 +100,15 @@ def calc_ue(model, val_loader, probabilities, dropout_rate, estimator_type='max_
 
         estimator = build_estimator(
             'bald_masked', model, dropout_mask=estimator_type, num_classes=1000,
-            nn_runs=nn_runs, keep_runs=True, acquisition=acquisition_param,
+            nn_runs=nn_runs, keep_runs=False, acquisition=acquisition_param,
             dropout_rate=dropout_rate
         )
         # ue = estimator.estimate(torch.DoubleTensor(datapoints).cuda())
         ue = estimator.estimate(val_loader)
-        probs = softmax(estimator.last_mcd_runs(), axis=-1)
-        probs = np.mean(probs, axis=-2)
-
-        if acquisition == 'max_prob':
-            ue = 1 - np.max(probs, axis=-1)
+        # if acquisition == 'max_prob':
+        #     probs = softmax(estimator.last_mcd_runs(), axis=-1)
+        #     probs = np.mean(probs, axis=-2)
+        #     ue = 1 - np.max(probs, axis=-1)
 
     return ue
 
