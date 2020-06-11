@@ -59,16 +59,17 @@ def print_confidence():
     acquisition_str = args.acquisition
 
     for i in range(args.repeats):
-
-        ensemble_method = f"ensemble_{args.acquisition}"
-        ensemble_file = f'logs/classification/{args.name}_{i}/ue_ensemble.pickle'
-        if os.path.exists(ensemble_file):
-            process_file(ensemble_file, args.acquisition, acc_conf, count_conf, [ensemble_method])
-
         num = '50000' if args.name == 'imagenet' else ''
         file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}{num}.pickle'
         if os.path.exists(file_name):
-            process_file(file_name, args.acquisition, acc_conf, count_conf, ['max_prob', 'mc_dropout', 'ht_dpp', 'ht_k_dpp', 'cov_dpp', 'cov_k_dpp'])
+            process_file(file_name, args.acquisition, acc_conf, count_conf, ['mc_dropout', 'ht_dpp', 'cov_k_dpp', 'cov_dpp', 'ht_k_dpp', 'max_prob'])
+
+        if args.acquisition == 'max_prob':
+            ensemble_method = f"ensemble_{args.acquisition}"
+            ensemble_file = f'logs/classification/{args.name}_{i}/ue_ensemble.pickle'
+            if os.path.exists(ensemble_file):
+                process_file(ensemble_file, args.acquisition, acc_conf, count_conf, [ensemble_method])
+
 
     plt.rcParams.update({'font.size': 13})
     plt.rc('grid', linestyle="--")
@@ -90,7 +91,7 @@ def print_confidence():
     plt.grid()
 
     plt.savefig(f"data/conf{resnet_str}_accuracy_{args.name}_{args.acquisition}{covariance_str}", dpi=150)
-    plt.show()
+    # plt.show()
 
 
 def process_file(file_name, acquisition, acc_conf, count_conf, methods):
@@ -106,9 +107,8 @@ def process_file(file_name, acquisition, acc_conf, count_conf, methods):
 
     bins = np.concatenate((np.arange(0, 1, 0.1), [0.98, 0.99, 0.999]))
 
-    # for estimator in record['estimators']:
-    for estimator in record['uncertainties'].keys():
-        if estimator not in methods:
+    for estimator in methods:
+        if estimator not in record['uncertainties'].keys():
             continue
 
         ue = record['uncertainties'][estimator]
@@ -128,7 +128,6 @@ def process_file(file_name, acquisition, acc_conf, count_conf, methods):
             acc_conf.append((confidence_level, accuracy, estimator_name(estimator)))
             count_conf.append((confidence_level, len(bin_correct), estimator_name(estimator)))
 
-
 def process_file_bald(file_name, acquisition, acc_conf, count_conf, methods):
     print(file_name)
 
@@ -145,8 +144,9 @@ def process_file_bald(file_name, acquisition, acc_conf, count_conf, methods):
         bins = np.concatenate(([0, 0.01, 0.02, 0.03, 0.04, 0.05], np.arange(0.1, 1, 0.1)))
     else:
         bins = np.concatenate(([0.05], np.arange(0.3, 3, 0.3)))
-    for estimator in record['uncertainties'].keys():
-        if estimator not in methods:
+
+    for estimator in methods:
+        if estimator not in record['uncertainties'].keys():
             continue
         ue = record['uncertainties'][estimator]
 

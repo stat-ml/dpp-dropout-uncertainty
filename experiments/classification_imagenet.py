@@ -1,3 +1,4 @@
+from time import time
 import os
 import pickle
 from argparse import ArgumentParser
@@ -34,29 +35,31 @@ def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument('name')
     parser.add_argument('--acquisition', '-a', type=str, default='bald')
-    parser.add_argument('--covariance', dest='covariance', action='store_true')
     parser.add_argument('--dataset-folder', type=str, default='data/imagenet')
-    parser.add_argument('--bs', type=int, default=64)
+    parser.add_argument('--bs', type=int, default=250)
+    parser.add_argument('--ood', dest='ood', action='store_true')
     args = parser.parse_args()
 
 
     config = deepcopy(base_config)
     config.update(experiment_config[args.name])
-    for param in ['name', 'acquisition', 'covariance', 'bs', 'dataset_folder']:
+
+
+    if args.ood:
+        args.dataset_folder = 'data/chest'
+
+    for param in ['name', 'acquisition', 'bs', 'dataset_folder', 'ood']:
         config[param] = getattr(args, param)
+
 
     return config
 
 
+def bench_uncertainty(model, val_loader, y_val, acquisition, config, logdir):
+    ood_str = '_ood' if config['ood'] else ''
+    logfile = logdir / f"ue{ood_str}_{config['acquisition']}{downsample}.pickle"
+    print(logfile)
 
-from time import time
-
-def bench_uncertainty(model, val_loader, y_val, acquisition, config):
-    covariance_str = '_covar' if config['covariance'] else ''
-    print(logdir / f"ue_{config['acquisition']}{covariance_str}{downsample}.pickle")
-    # runner = SupervisedRunner()
-    # logits = runner.predict_loader(model, val_loader)
-    # probabilities = softmax(logits, axis=-1)
     probabilities = get_probabilities(model, val_loader).astype(np.single)
 
     estimators = ['max_prob', 'mc_dropout', 'ht_dpp', 'cov_k_dpp']
@@ -84,7 +87,7 @@ def bench_uncertainty(model, val_loader, y_val, acquisition, config):
         'estimators': estimators,
         'times': times
     }
-    with open(logdir / f"ue_{config['acquisition']}{covariance_str}{downsample}.pickle", 'wb') as f:
+    with open(logfile, 'wb') as f:
         pickle.dump(record, f)
 
     return probabilities, uncertainties, estimators
@@ -140,7 +143,8 @@ class ImageDataset(Dataset):
     def __init__(self, folder):
         self.folder = Path(folder)
         files = sorted(os.listdir(folder))
-        self.files = [file for file in files if file.endswith(".JPEG")][:downsample]
+        # self.files = [file for file in files if file.endswith(".JPEG")][:downsample]
+        self.files = files[:downsample]
 
     def __len__(self):
         return len(self.files)
@@ -173,6 +177,7 @@ if __name__ == '__main__':
     downsample = 50_000
 
     config = parse_arguments()
+    print(config)
     set_global_seed(42)
     val_loader, y_val = get_data(config)
 
@@ -184,4 +189,4 @@ if __name__ == '__main__':
 
         # x_val_tensor = torch.cat([batch for batch in val_loader]).double()
 
-        bench_uncertainty(model, val_loader, y_val, config['acquisition'], config)
+        bench_uncertainty(model, val_loader, y_val, config['acquisition'], config, logdir)

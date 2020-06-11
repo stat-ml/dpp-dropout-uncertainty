@@ -29,12 +29,12 @@ def process_file(file_name, count_conf, args, methods):
         record = pickle.load(f)
 
     if args.acquisition == 'bald':
-        process_file_bald(count_conf, record, methods)
+        process_file_bald(record, count_conf, args, methods)
         return
 
     bins = np.concatenate((np.arange(0, 1, 0.1), [0.98, 0.99, 0.999]))
-    for i, estimator in enumerate(record['estimators']):
-        if estimator not in methods:
+    for estimator in methods:
+        if estimator not in record['uncertainties'].keys():
             continue
         ue = record['uncertainties'][estimator]
 
@@ -49,14 +49,17 @@ def process_file(file_name, count_conf, args, methods):
             count_conf.append((confidence_level, level_count, estimator_name(estimator)))
 
 
-def process_file_bald(count_conf, record, methods):
+def process_file_bald(record, count_conf, args, methods):
     # bins = np.concatenate((np.arange(0, 1, 0.1), [0.98, 0.99, 0.999]))
 
-    max_ue = 1.4 if 'mnist' in file_name else 1
-    bins = np.concatenate(([0,  0.02, 0.04, 0.06], np.arange(0.1, max_ue, 0.1)))
+    max_ue = {
+        'mnist': 1.4, 'cifar': 1, 'imagenet': 1.1
+    }[args.name]
 
-    for i, estimator in enumerate(record['estimators']):
-        if estimator not in methods:
+    bins = np.concatenate(([0,  0.02, 0.04, 0.06], np.arange(0.1, max_ue, 0.02)))
+
+    for estimator in methods:
+        if estimator not in record['uncertainties'].keys():
             continue
         ue = record['uncertainties'][estimator]
 
@@ -73,13 +76,21 @@ def process_file_bald(count_conf, record, methods):
 count_conf = []
 
 for i in range(args.repeats):
-    ensemble_method = f"ensemble_{args.acquisition}"
-    file_name = f'logs/classification/{args.name}_{i}/ue_ensemble_ood.pickle'
-    if os.path.exists(file_name):
-        process_file(file_name, count_conf, args, [ensemble_method])
-
     file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_ood_{acquisition_str}.pickle'
-    process_file(file_name, count_conf, args, ['max_prob', 'mc_dropout', 'ht_dpp', 'ht_k_dpp', 'cov_dpp', 'cov_k_dpp'])
+    if args.acquisition == 'max_prob':
+        methods = ['mc_dropout', 'ht_dpp', 'cov_k_dpp', 'cov_dpp', 'ht_k_dpp', 'max_prob']
+    else:
+        methods = ['mc_dropout', 'ht_dpp', 'cov_k_dpp', 'cov_dpp', 'ht_k_dpp']
+
+
+    process_file(file_name, count_conf, args, methods)
+
+    if args.acquisition == 'max_prob':
+        ensemble_method = f"ensemble_{args.acquisition}"
+        file_name = f'logs/classification/{args.name}_{i}/ue_ensemble_ood.pickle'
+        if os.path.exists(file_name):
+            process_file(file_name, count_conf, args, [ensemble_method])
+
 
 
 if args.acquisition == 'bald':
