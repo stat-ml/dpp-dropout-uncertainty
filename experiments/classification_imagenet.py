@@ -12,22 +12,12 @@ from PIL import Image
 
 import numpy as np
 import torch
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_curve, roc_auc_score
-from scipy.special import softmax
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-from catalyst.dl import SupervisedRunner
-from catalyst.dl.callbacks import AccuracyCallback, EarlyStoppingCallback
 from catalyst.utils import set_global_seed
 
 from alpaca.active_learning.simple_update import entropy
 from alpaca.uncertainty_estimator import build_estimator
-from alpaca.uncertainty_estimator.masks import DEFAULT_MASKS
 
 from configs import base_config, experiment_config
-from deprecated.classification_active_learning import loader
 from models import resnet_dropout
 
 
@@ -136,7 +126,6 @@ image_transforms = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
-
 
 
 class ImageDataset(Dataset):

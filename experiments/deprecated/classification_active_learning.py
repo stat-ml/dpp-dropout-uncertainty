@@ -1,11 +1,11 @@
 from argparse import ArgumentParser
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
 import torch
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -17,7 +17,7 @@ from catalyst.utils import set_global_seed
 from alpaca.active_learning.simple_update import update_set
 
 from configs import al_config, al_experiments
-from utils.visual_datasets import ImageDataset
+from visual_datasets import ImageDataset
 
 
 def parse_arguments():

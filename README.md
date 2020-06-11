@@ -1,5 +1,14 @@
 # Uncertainty estimation via decorrelation and DPP
 
+
+
+
+
+
+
+
+
+<!--
 Code for paper "Dropout Strikes Back: Improved Uncertainty Estimation via Diversity Sampled Implicit Ensembles" by Evgenii Tsymbalov, Kirill Fedyanin and Maxim Panov 
 
  Our method improves Monte-Carlo dropout on inference for uncertainty estimation. Usually dropout masks are sampled randomly by Bernoulli distribution, we propose to sample them in a 'smart' data-based way, using decorrelation or determinantal point processes (DPP)
@@ -72,3 +81,5 @@ The script generates plots in `experiments/data/al` folder
 In most experiments* we provided the SEED variable inside the scripts, so you should be able to get the exact numbers with this repository - they would be slightly different from ones in the articles, but all the conclusions stay the same.
 
 *- Except the Dolan-More one, because it was too big to rerun with seed, unfortunately.
+
+-->

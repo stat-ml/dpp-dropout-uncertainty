@@ -8,24 +8,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-# if estimator == 'max_prob':
-#     estimator_name = estimator
-# else:
-#     estimator_name = f"{estimator}_{args.acquisition}"
-
-
-# def estimator_name(estimator):
-#     return {
-#         'max_prob': 'Max probability',
-#         'mc_dropout': 'MC dropout',
-#         'ht_decorrelating': 'decorrelation',
-#         'ht_dpp': 'DPP',
-#         'ht_k_dpp': 'k-DPP',
-#         'cov_k_dpp': 'k-DPP',
-#         'ensemble_max_prob': 'Ensemble',
-#         'ensemble_bald': 'Ensemble'
-#     }[estimator]
-
 def estimator_name(estimator):
     return {
         'max_prob': 'Max probability',
@@ -41,26 +23,23 @@ def estimator_name(estimator):
     }[estimator]
 
 
-
 def print_confidence():
     parser = argparse.ArgumentParser()
     parser.add_argument('name', type=str)
-    parser.add_argument('repeats', type=int)
     parser.add_argument('--acquisition', '-a', type=str, default='bald')
     parser.add_argument('--covariance', dest='covariance', action='store_true')
-    parser.add_argument('--resnet', dest='resnet', action='store_true')
     args = parser.parse_args()
+
+    args.repeats = {'mnist': 3, 'cifar': 3, 'imagenet': 1}[args.name]
 
     acc_conf = []
     count_conf = []
 
     covariance_str = '_covar' if args.covariance else ''
-    resnet_str = '_resnet' if args.resnet else ''
     acquisition_str = args.acquisition
 
     for i in range(args.repeats):
-        num = '50000' if args.name == 'imagenet' else ''
-        file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_{acquisition_str}{num}.pickle'
+        file_name = f'logs/classification/{args.name}_{i}/ue_{acquisition_str}.pickle'
         if os.path.exists(file_name):
             process_file(file_name, args.acquisition, acc_conf, count_conf, ['mc_dropout', 'ht_dpp', 'cov_k_dpp', 'cov_dpp', 'ht_k_dpp', 'max_prob'])
 
@@ -90,8 +69,8 @@ def print_confidence():
     plt.xlabel(r"$\tau$")
     plt.grid()
 
-    plt.savefig(f"data/conf{resnet_str}_accuracy_{args.name}_{args.acquisition}{covariance_str}", dpi=150)
-    # plt.show()
+    plt.savefig(f"data/conf_accuracy_{args.name}_{args.acquisition}{covariance_str}", dpi=150)
+    plt.show()
 
 
 def process_file(file_name, acquisition, acc_conf, count_conf, methods):
@@ -112,9 +91,7 @@ def process_file(file_name, acquisition, acc_conf, count_conf, methods):
             continue
 
         ue = record['uncertainties'][estimator]
-
         print(estimator)
-        print(min(ue), max(ue))
         ue = ue / max(ue)
 
         for confidence_level in bins:
@@ -128,16 +105,14 @@ def process_file(file_name, acquisition, acc_conf, count_conf, methods):
             acc_conf.append((confidence_level, accuracy, estimator_name(estimator)))
             count_conf.append((confidence_level, len(bin_correct), estimator_name(estimator)))
 
-def process_file_bald(file_name, acquisition, acc_conf, count_conf, methods):
-    print(file_name)
 
+def process_file_bald(file_name, acquisition, acc_conf, count_conf, methods):
     with open(file_name, 'rb') as f:
         record = pickle.load(f)
 
     prediction = np.argmax(np.array(record['probabilities']), axis=-1)
     is_correct = (prediction == record['y_val']).astype(np.int)
 
-    # bins = np.concatenate((np.arange(0, 1, 0.1), [0.98, 0.99, 0.999]))
     if 'mnist' in file_name:
         bins = np.concatenate(([0, 0.01, 0.02, 0.03, 0.04, 0.05], np.arange(0.1, 1.4, 0.1)))
     elif 'cifar' in file_name:
@@ -149,9 +124,6 @@ def process_file_bald(file_name, acquisition, acc_conf, count_conf, methods):
         if estimator not in record['uncertainties'].keys():
             continue
         ue = record['uncertainties'][estimator]
-
-        print(estimator)
-        print(min(ue), max(ue))
 
         for ue_level in bins:
             bin_correct = is_correct[ue < ue_level]

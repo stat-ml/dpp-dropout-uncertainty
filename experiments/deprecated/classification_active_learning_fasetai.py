@@ -1,4 +1,3 @@
-import os # os.environ['QT_QPA_PLATFORM']='offscreen' # # from functools import partial # from copy import deepcopy # from pathlib import Path
 import random
 
 import numpy as np
@@ -10,15 +9,14 @@ import pandas as pd
 import torch
 from torch import nn
 
-from fastai.vision import (rand_pad, flip_lr, ImageDataBunch, Learner, accuracy)
+from fastai.vision import (ImageDataBunch, Learner, accuracy)
 from fastai.callbacks import EarlyStoppingCallback
 
 from alpaca.model.cnn import AnotherConv, SimpleConv
 from alpaca.model.resnet import resnet_masked
-from alpaca.uncertainty_estimator.masks import DEFAULT_MASKS
 from alpaca.active_learning.simple_update import update_set
-from utils.fastai import ImageArrayDS
-from utils.visual_datasets import prepare_mnist, prepare_cifar, prepare_svhn
+from deprecated.utils import ImageArrayDS
+from visual_datasets import prepare_mnist, prepare_cifar, prepare_svhn
 
 
 """

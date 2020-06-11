@@ -1,10 +1,7 @@
 from copy import deepcopy
 
-import torch
-
-from utils.visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn
-from models import SimpleConv, StrongConv, resnet_masked
-
+from visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn
+from models import SimpleConv, StrongConv
 
 base_config = {
     'train_size': 50_000,

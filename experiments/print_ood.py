@@ -11,19 +11,12 @@ from print_confidence_accuracy import estimator_name
 
 parser = argparse.ArgumentParser()
 parser.add_argument('name', type=str)
-parser.add_argument('repeats', type=int)
 parser.add_argument('--acquisition', '-a', type=str, default='bald')
-parser.add_argument('--resnet', dest='resnet', action='store_true')
 args = parser.parse_args()
-
-print(args)
-
-resnet_str = '_resnet' if args.resnet else ''
-acquisition_str = 'bald' if args.acquisition == 'bald_n' else args.acquisition
+args.repeats = {'mnist': 3, 'cifar': 3, 'imagenet': 1}[args.name]
 
 
 def process_file(file_name, count_conf, args, methods):
-    print(file_name)
 
     with open(file_name, 'rb') as f:
         record = pickle.load(f)
@@ -64,7 +57,6 @@ def process_file_bald(record, count_conf, args, methods):
         ue = record['uncertainties'][estimator]
 
         print(estimator)
-        print(min(ue), max(ue))
         if args.acquisition == 'bald':
             ue = ue / max(ue)
 
@@ -76,7 +68,7 @@ def process_file_bald(record, count_conf, args, methods):
 count_conf = []
 
 for i in range(args.repeats):
-    file_name = f'logs/classification{resnet_str}/{args.name}_{i}/ue_ood_{acquisition_str}.pickle'
+    file_name = f'logs/classification/{args.name}_{i}/ue_ood_{args.acquisition}.pickle'
     if args.acquisition == 'max_prob':
         methods = ['mc_dropout', 'ht_dpp', 'cov_k_dpp', 'cov_dpp', 'ht_k_dpp', 'max_prob']
     else:
@@ -111,6 +103,6 @@ sign = '<' if args.acquisition == 'bald' else '>'
 plt.ylabel(rf"Number of samples, {metric} {sign} $\tau$")
 plt.xlabel(rf"$\tau$")
 plt.grid()
-plt.savefig(f"data/conf_ood{resnet_str}_{args.name}_{args.acquisition}", dpi=150)
+plt.savefig(f"data/conf_ood_{args.name}_{args.acquisition}", dpi=150)
 plt.show()
 

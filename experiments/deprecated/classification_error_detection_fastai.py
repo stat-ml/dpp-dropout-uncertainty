@@ -15,9 +15,9 @@ from fastai.callbacks import EarlyStoppingCallback
 from alpaca.uncertainty_estimator import build_estimator
 from alpaca.active_learning.simple_update import entropy
 
-from utils.fastai import ImageArrayDS
+from deprecated.utils import ImageArrayDS
 from deprecated.classification_active_learning import build_model
-from utils.visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn
+from visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn
 
 
 """
