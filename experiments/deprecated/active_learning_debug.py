@@ -2,16 +2,14 @@ import sys
 sys.path.append('..')
 
 import torch
-import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
 
-from fastai.vision import rand_pad, flip_lr, ImageDataBunch, accuracy
-from dppy.finite_dpps import FiniteDPP
+from fastai.vision import rand_pad, flip_lr, ImageDataBunch
 
 from model.cnn import AnotherConv
 from dataloader.builder import build_dataset
-from experiments.utils import ImageArrayDS, Inferencer
+from deprecated.utils import ImageArrayDS
 
 # == Place to develop, experiment and debug new methods of active learning == #
 

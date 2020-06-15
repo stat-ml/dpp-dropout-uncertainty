@@ -1,10 +1,7 @@
 from copy import deepcopy
 
-import torch
-
-from utils.visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn
+from visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn
 from models import SimpleConv, StrongConv
-
 
 base_config = {
     'train_size': 50_000,
@@ -14,23 +11,43 @@ base_config = {
     'epochs': 50,
     'patience': 3,
     'batch_size': 128,
-    'repeats': 5
+    'repeats': 3,
+    'dropout_rate': 0.5,
+    'nn_runs': 100
 }
 
 
 experiment_config = {
     'mnist': {
-        'checkpoint': 'logs/ht/mnist/checkpoints/train.5.pth'
-    },
-    'svhn': {
-        'prepare_dataset': prepare_svhn,
-        'model_class': StrongConv,
-        'repeats': 5
+        'train_size': 500,
+        'dropout_rate': 0.5,
+        'n_models': 20
     },
     'cifar': {
         'prepare_dataset': prepare_cifar,
         'model_class': StrongConv,
-        'repeats': 5
+        'n_models': 20,
+    },
+    'imagenet': {
+        'dropout_rate': 0.5,
+        'repeats': 1,
+    }
+}
+
+experiment_ood_config = {
+    'mnist': {
+        'train_size': 500,
+        'ood_dataset': prepare_mnist
+    },
+    'svhn': {
+        'prepare_dataset': prepare_svhn,
+        'model_class': StrongConv,
+        'repeats': 3,
+    },
+    'cifar': {
+        'prepare_dataset': prepare_cifar,
+        'model_class': StrongConv,
+        'repeats': 3
     }
 }
 

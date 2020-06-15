@@ -1,28 +1,23 @@
 from copy import deepcopy
 import sys
 from functools import partial
-from pathlib import Path
 import random
 
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-import seaborn as sns
-import pandas as pd
-from sklearn.metrics import roc_auc_score, roc_curve
 
 import torch
 import torch.nn.functional as F
 from fastai.vision import (ImageDataBunch, Learner, accuracy)
 from fastai.callbacks import EarlyStoppingCallback
 
-from alpaca.uncertainty_estimator.masks import DEFAULT_MASKS
 from alpaca.uncertainty_estimator import build_estimator
 from alpaca.active_learning.simple_update import entropy
 
-from utils.fastai import ImageArrayDS
-from classification_active_learning import build_model
-from utils.visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn
+from deprecated.utils import ImageArrayDS
+from deprecated.classification_active_learning import build_model
+from visual_datasets import prepare_cifar, prepare_mnist, prepare_svhn
 
 
 """
