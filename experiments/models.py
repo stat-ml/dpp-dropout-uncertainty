@@ -3,7 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 from torchvision.models.resnet import ResNet, BasicBlock, conv3x3, conv1x1, Bottleneck
 from torch.hub import load_state_dict_from_url
-from alpaca.models.cnn import SimpleModel
+from alpaca.model.cnn import SimpleConv
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',

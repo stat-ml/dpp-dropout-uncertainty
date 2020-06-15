@@ -17,7 +17,7 @@ from alpaca.uncertainty_estimator import build_estimator
 from alpaca.uncertainty_estimator.masks import DEFAULT_MASKS
 
 from configs import base_config, experiment_ood_config
-from deprecated.classification_active_learning import loader
+from visual_datasets import loader
 
 from classification_ue import train
 

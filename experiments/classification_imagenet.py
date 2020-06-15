@@ -1,13 +1,13 @@
 from time import time
+from collections import defaultdict
 import os
 import pickle
 from argparse import ArgumentParser
-from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
 
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, datasets, models
+from torchvision import transforms
 from PIL import Image
 
 import numpy as np
@@ -23,13 +23,12 @@ from models import resnet_dropout
 
 def parse_arguments():
     parser = ArgumentParser()
-    parser.add_argument('name')
     parser.add_argument('--acquisition', '-a', type=str, default='bald')
     parser.add_argument('--dataset-folder', type=str, default='data/imagenet')
     parser.add_argument('--bs', type=int, default=250)
     parser.add_argument('--ood', dest='ood', action='store_true')
     args = parser.parse_args()
-
+    args.name ='imagenet'
 
     config = deepcopy(base_config)
     config.update(experiment_config[args.name])
@@ -47,7 +46,7 @@ def parse_arguments():
 
 def bench_uncertainty(model, val_loader, y_val, acquisition, config, logdir):
     ood_str = '_ood' if config['ood'] else ''
-    logfile = logdir / f"ue{ood_str}_{config['acquisition']}{downsample}.pickle"
+    logfile = logdir / f"ue{ood_str}_{config['acquisition']}.pickle"
     print(logfile)
 
     probabilities = get_probabilities(model, val_loader).astype(np.single)
@@ -58,17 +57,14 @@ def bench_uncertainty(model, val_loader, y_val, acquisition, config, logdir):
     print(estimators)
 
     uncertainties = {}
-    times = {}
+    times = defaultdict(list)
     for estimator_name in estimators:
-        # try:
         print(estimator_name)
         t0 = time()
         ue = calc_ue(model, val_loader, probabilities, config['dropout_rate'], estimator_name, nn_runs=config['nn_runs'], acquisition=acquisition)
-        times[estimator_name] = time() - t0
+        times[estimator_name].append(time() - t0)
         print('time', time() - t0)
         uncertainties[estimator_name] = ue
-        # except Exception as e:
-        #     print(e)
 
     record = {
         'y_val': y_val,
@@ -96,12 +92,7 @@ def calc_ue(model, val_loader, probabilities, dropout_rate, estimator_type='max_
             nn_runs=nn_runs, keep_runs=False, acquisition=acquisition_param,
             dropout_rate=dropout_rate
         )
-        # ue = estimator.estimate(torch.DoubleTensor(datapoints).cuda())
         ue = estimator.estimate(val_loader)
-        # if acquisition == 'max_prob':
-        #     probs = softmax(estimator.last_mcd_runs(), axis=-1)
-        #     probs = np.mean(probs, axis=-2)
-        #     ue = 1 - np.max(probs, axis=-1)
 
     return ue
 
@@ -132,7 +123,6 @@ class ImageDataset(Dataset):
     def __init__(self, folder):
         self.folder = Path(folder)
         files = sorted(os.listdir(folder))
-        # self.files = [file for file in files if file.endswith(".JPEG")][:downsample]
         self.files = files[:downsample]
 
     def __len__(self):
@@ -175,7 +165,5 @@ if __name__ == '__main__':
         logdir = Path(f"logs/classification/{config['name']}_{i}")
 
         model = resnet_dropout(dropout_rate=config['dropout_rate']).double()
-
-        # x_val_tensor = torch.cat([batch for batch in val_loader]).double()
 
         bench_uncertainty(model, val_loader, y_val, config['acquisition'], config, logdir)
