@@ -9,6 +9,32 @@ model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
 }
 
+
+class SimpleMLP(nn.Module):
+    def __init__(self, input_size=8, dropout_rate=0.5):
+        super().__init__()
+        base = 64
+        self.activation = F.relu
+        self.fc1 = nn.Linear(input_size, 2*base)
+        self.fc2 = nn.Linear(2*base, 2*base)
+        self.fc3 = nn.Linear(2*base, base)
+        self.fc4 = nn.Linear(base, 1)
+        self.dropout_rate = dropout_rate
+
+    def forward(self, x, dropout_mask=None, dropout_rate=None):
+        x = F.dropout(self.activation(self.fc1(x)), p=self.dropout_rate)
+        x = F.dropout(self.activation(self.fc2(x)), p=self.dropout_rate)
+        x = self.activation(self.fc3(x))
+        if dropout_mask is None:
+            x = F.dropout(x, self.dropout_rate)
+        else:
+            x = x * dropout_mask(x, dropout_rate, 0)
+
+        return x
+
+
+
+
 class StrongConv(nn.Module):
     def __init__(self, dropout_rate=0.5):
         super().__init__()

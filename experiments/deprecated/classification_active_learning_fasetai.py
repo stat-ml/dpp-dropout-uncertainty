@@ -15,7 +15,7 @@ from fastai.callbacks import EarlyStoppingCallback
 from alpaca.model.cnn import AnotherConv, SimpleConv
 from alpaca.model.resnet import resnet_masked
 from alpaca.active_learning.simple_update import update_set
-from deprecated.utils import ImageArrayDS
+from utils import ImageArrayDS
 from visual_datasets import prepare_mnist, prepare_cifar, prepare_svhn
 
 

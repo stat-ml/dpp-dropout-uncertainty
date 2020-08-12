@@ -11,7 +11,7 @@ from fastai.callbacks import EarlyStoppingCallback
 
 
 from dataloader.builder import build_dataset
-from deprecated.utils import ImageArrayDS, Inferencer
+from utils import ImageArrayDS, Inferencer
 from model.cnn import AnotherConv
 from model.resnet import resnet_linear, resnet_masked
 from experiments.experiment_setup import build_estimator

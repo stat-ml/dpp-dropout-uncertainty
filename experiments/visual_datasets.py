@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 from alpaca.dataloader.builder import build_dataset
 
+
 def loader(x, y, batch_size=128, tfms=None, train=False):
     # ds = TensorDataset(torch.DoubleTensor(x), torch.LongTensor(y))
     ds = ImageDataset(x, y, train=train, tfms=tfms)
