@@ -13,26 +13,28 @@ model_urls = {
 class SimpleMLP(nn.Module):
     def __init__(self, input_size=8, dropout_rate=0.5):
         super().__init__()
-        base = 64
-        self.activation = F.relu
+        base = 128
+        self.activation = F.elu
+        self.dropout = nn.Dropout(dropout_rate)
         self.fc1 = nn.Linear(input_size, 2*base)
         self.fc2 = nn.Linear(2*base, 2*base)
         self.fc3 = nn.Linear(2*base, base)
         self.fc4 = nn.Linear(base, 1)
-        self.dropout_rate = dropout_rate
+        self.memory = []
 
     def forward(self, x, dropout_mask=None, dropout_rate=None):
-        x = F.dropout(self.activation(self.fc1(x)), p=self.dropout_rate)
-        x = F.dropout(self.activation(self.fc2(x)), p=self.dropout_rate)
+        x = self.dropout(self.activation(self.fc1(x)))
+        x = self.dropout(self.activation(self.fc2(x)))
         x = self.activation(self.fc3(x))
+        torch.zeros(5).cuda()
         if dropout_mask is None:
-            x = F.dropout(x, self.dropout_rate)
+            x = self.dropout(x)
         else:
             x = x * dropout_mask(x, dropout_rate, 0)
+            self.memory.append(x)
+        x = self.fc4(x)
 
         return x
-
-
 
 
 class StrongConv(nn.Module):
