@@ -62,7 +62,8 @@ def train(config, loaders, logdir, checkpoint=None):
 
 def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val, acquisition, config):
     runner = SupervisedRunner()
-    logits = runner.predict_loader(model, loaders['valid'])
+    logits = runner.predict_loader(loader=loaders['valid'], model=model)
+    logits = torch.cat([l['logits'] for l in logits], dim=0).cpu()
     probabilities = softmax(logits, axis=-1)
 
     if config['acquisition'] in ['bald', 'var_ratio']:

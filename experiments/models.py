@@ -31,10 +31,14 @@ class SimpleMLP(nn.Module):
             x = self.dropout(x)
         else:
             x = x * dropout_mask(x, dropout_rate, 0)
-            self.memory.append(x)
+            # self.memory.append(x)
         x = self.fc4(x)
 
+        if dropout_mask:
+            self.memory.append(x)
+
         return x
+
 
 
 class StrongConv(nn.Module):

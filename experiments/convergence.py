@@ -27,9 +27,8 @@ from alpaca.analysis.metrics import uq_ll
 
 
 from models import SimpleMLP
-from convergence_estimators import BasicBernoulliMask, MCDUEMasked, DPPMask
-
-
+from alpaca.uncertainty_estimator.mcdue import MCDUEMasked
+from alpaca.uncertainty_estimator.masks import BasicBernoulliMask, DPPMask, KDPPMask
 
 
 def train(config, loaders, logdir, input_size, checkpoint=None):
@@ -54,40 +53,64 @@ def train(config, loaders, logdir, input_size, checkpoint=None):
     return model
 
 
-
-def bench_uncertainty(model, loaders, x_val, y_val, config, y_scaler):
-    print(len(model.memory))
+def bench_uncertainty(model, loaders, x_val, y_val, config, y_scaler, metric):
     model.eval()
     with torch.no_grad():
         predictions = model(x_val)
     # unscale = y_scaler.inverse_transform
-    print(len(model.memory))
     errors = np.square(predictions.cpu() - y_val)
     mask = BasicBernoulliMask()
-    estimator = MCDUEMasked(model, dropout_mask=mask, nn_runs=config['nn_runs'], dropout_rate=0.5)
-    uq = estimator.estimate(x_val)
-    print("mcdue", uq_ll(errors, uq))
-    print(len(model.memory))
+    estimator = MCDUEMasked(model, dropout_mask=mask, nn_runs=config['nn_runs'], dropout_rate=0.9)
+    uq_mc = estimator.estimate(x_val)
+    print("mcdue", uq_ll(errors, uq_mc))
 
     mask = DPPMask(ht_norm=True)
     estimator = MCDUEMasked(model, dropout_mask=mask, nn_runs=config['nn_runs'])
-    uq = estimator.estimate(x_val)
-    print("dpp", uq_ll(errors, uq))
-    print(len(model.memory))
+    uq_dpp = estimator.estimate(x_val)
+    print("dpp", uq_ll(errors, uq_dpp))
+
+    mask = KDPPMask(ht_norm=True)
+    estimator = MCDUEMasked(model, dropout_mask=mask, nn_runs=config['nn_runs'], dropout_rate=0.7)
+    uq_kdpp = estimator.estimate(x_val)
+    print("k-dpp", uq_ll(errors, uq_kdpp))
+
+    mask = DPPMask()
+    estimator = MCDUEMasked(model, dropout_mask=mask, nn_runs=config['nn_runs'])
+    uq_dpp_noht = estimator.estimate(x_val)
+    print("dpp_no_ht", uq_ll(errors, uq_dpp_noht))
+
     memory = np.stack([tensor.cpu() for tensor in model.memory])
-    # plot_means(memory)
-    # plot_vars(memory)
-    return measure_covariance(memory)
+
+    if metric == 'covariance':
+        return measure(memory, covariance)
+    elif metric == 'uncertainty':
+        return np.mean(uq_mc), np.mean(uq_dpp), np.mean(uq_kdpp), np.mean(uq_dpp_noht)
+    elif metric == 'rmse':
+        return measure(memory, rmse_ensemble, y_val)
+    elif metric == 'll':
+        return uq_ll(errors, uq_mc), uq_ll(errors, uq_dpp), uq_ll(errors, uq_kdpp), uq_ll(errors, uq_dpp_noht)
 
 
-def measure_covariance(memory):
+
+def rmse_ensemble(samples, labels):
+    return np.sqrt(np.mean(np.square(np.mean(samples, axis=0) - labels)))
+
+
+def covariance(samples, _):
+    corrs = np.corrcoef(np.mean(samples, axis=-1))
+    return np.mean(corrs)
+
+
+def measure(memory, reduction, dop_arg=None):
     mc_samples = memory[:100]
-    mc_corrs = np.corrcoef(np.mean(mc_samples, axis=-1))
-    mc_cor = np.mean(mc_corrs)
-    dpp_samples = memory[-100:]
-    dpp_corrs = np.corrcoef(np.mean(dpp_samples, axis=-1))
-    dpp_cor = np.mean(dpp_corrs)
-    return mc_cor, dpp_cor
+    dpp_samples = memory[102:202]
+    k_dpp_samples = memory[203:303]
+    dpp_no_ht_samples = memory[-100:]
+    return (reduction(mc_samples, dop_arg),
+           reduction(dpp_samples, dop_arg),
+           reduction(k_dpp_samples, dop_arg),
+           reduction(dpp_no_ht_samples, dop_arg))
+
 
 
 def plot_means(memory):
@@ -113,8 +136,6 @@ def eval_mean(block):
 
 
 def eval_variation(block):
-    # return np.mean(np.std(np.mean(block, axis=-1)), axis=-1)
-    # return np.mean((np.std(block, axis=-1)))
     return np.std(np.mean(np.mean(block, axis=-1), axis=-1))
 
 
@@ -122,8 +143,9 @@ def plot_vars(memory):
     true_vars = eval_variation(memory[100:101])
     mc_mem = memory[:100]
     mc_vars = [eval_variation(mc_mem[:i]) for i in range(1, 101, 5)]
-    dpp_mem = memory[-100:]
+    dpp_mem = memory[101:201]
     dpp_vars = [eval_variation(dpp_mem[:i]) for i in range(1, 101, 5)]
+
     points = np.array(range(1, 101, 5))
 
     plt.title(config['name']+', narrow MC-dropout')
@@ -190,11 +212,22 @@ config = {
 if __name__ == '__main__':
     config = parse_arguments(config)
     covs = []
+    # datasets = [
+    #     'boston_housing', 'concrete', 'energy_efficiency',
+    #     'kin8nm', 'naval_propulsion', 'ccpp', 'red_wine',
+    #     'yacht_hydrodynamics'
+    # ]
+    # datasets = [
+    #     'boston_housing', 'concrete', 'energy_efficiency',
+    # ]
     datasets = [
-        'boston_housing', 'concrete', 'energy_efficiency',
-        'kin8nm', 'naval_propulsion', 'ccpp', 'red_wine',
-        'yacht_hydrodynamics'
+        'kin8nm', 'concrete', 'ccpp'# 'yacht_hydrodynamics'
     ]
+
+    metrics = ['covariance', 'uncertainty', 'rmse', 'll']
+    metric = metrics[1]
+
+
     for name in datasets:
         config['name'] = name
         # set_global_seed(40)
@@ -213,13 +246,53 @@ if __name__ == '__main__':
             model = train(config, loaders, logdir, x_train.shape[-1], checkpoint)
             x_val_tensor = torch.cat([batch[0] for batch in loaders['valid']]).cuda()
 
-            cov_mc, cov_dpp = bench_uncertainty(
-                model, loaders, x_val_tensor, y_val, config, y_scaler)
+            mc, dpp, kdpp, dpp_noht = bench_uncertainty(
+                model, loaders, x_val_tensor, y_val, config, y_scaler, metric)
 
-            covs.append([name, cov_mc, 'mc_dropout'])
-            covs.append([name, cov_dpp, 'dpp'])
+            covs.append([name, mc, 'mc_dropout'])
+            covs.append([name, dpp, 'dpp'])
+            covs.append([name, kdpp, 'k-dpp'])
+            covs.append([name, dpp_noht, 'dpp_noht'])
 
-    df = pd.DataFrame(covs, columns=['dataset', 'covariance', 'method'])
-    sns.boxplot('dataset', 'covariance', hue='method', data=df)
-    plt.show()
+
+    if metric == 'covariance':
+        df = pd.DataFrame(covs, columns=['dataset', 'correlation', 'method'])
+        plt.title("Correlation on samples")
+        sns.boxplot('dataset', 'correlation', hue='method', data=df)
+        # plt.ylim(0.91, 1)
+        for i in range(len(df['dataset'].unique()) - 1):
+            plt.vlines(i + .5, 0.88, 0.98, linestyles='solid', colors='gray', alpha=0.2)
+
+        plt.savefig('data/1_covariance.png', dpi=150)
+    elif metric == 'uncertainty':
+        df = pd.DataFrame(covs, columns=['dataset', 'uncertainty', 'method'])
+        plt.title("Average uncertainty")
+        g = sns.boxplot('dataset', 'uncertainty', hue='method', data=df)
+        for i in range(len(df['dataset'].unique()) - 1):
+            plt.vlines(i + .5, 0.1, 0.3, linestyles='solid', colors='gray', alpha=0.2)
+
+        # plt.legend(loc='bottom left')
+        g.legend(loc='bottom left')
+
+        plt.savefig('data/2_uncertainty.png', dpi=150)
+    elif metric == 'rmse':
+        df = pd.DataFrame(covs, columns=['dataset', 'rmse', 'method'])
+        plt.title("RMSE")
+        sns.boxplot('dataset', 'rmse', hue='method', data=df)
+        for i in range(len(df['dataset'].unique()) - 1):
+            plt.vlines(i + .5, 0.15, 0.4, linestyles='solid', colors='gray', alpha=0.2)
+        plt.savefig('data/3_rmse.png', dpi=150)
+    elif metric == 'll':
+        df = pd.DataFrame(covs, columns=['dataset', 'll', 'method'])
+        plt.title("Log-likelihood")
+        sns.boxplot('dataset', 'll', hue='method', data=df)
+        plt.ylim(0.5, 1.4)
+        for i in range(len(df['dataset'].unique()) - 1):
+            plt.vlines(i + .5, 0.6, 1.2, linestyles='solid', colors='gray', alpha=0.2)
+        plt.savefig('data/4_ll.png', dpi=150)
+    else:
+        raise ValueError
+
+    # plt.show()
+
 
