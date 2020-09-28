@@ -31,13 +31,34 @@ def process_file(file_name, accumulation, methods, acquisition):
 
     probs = record['probabilities']
     predictions = np.argmax(probs, axis=-1)
-    errors = record['y_val'] != np.array(predictions)
+    correct_predictions = record['y_val'] == np.array(predictions)
+
     for method in methods:
-        uq = roc_auc_score(errors, record['uncertainties'][method])
-        accumulation.append((uq, f"{method}_{acquisition}"))
+        uq = record['uncertainties'][method]
+        idx = np.argsort(uq)
+        for fraction in np.arange(0.5, 1.01, 0.01):
+            part_size = int(fraction * len(idx))
+            part = correct_predictions[idx][:part_size]
+            accuracy = sum(part) / len(part)
+            accumulation.append((fraction, accuracy, method))
 
 
-def print_rocauc():
+def add_random(accumulation, file_name):
+    with open(file_name, 'rb') as f:
+        record = pickle.load(f)
+
+    probs = record['probabilities']
+    predictions = np.argmax(probs, axis=-1)
+    correct_predictions = record['y_val'] == np.array(predictions)
+    idx = np.random.permutation(len(predictions))
+    for fraction in np.arange(0.5, 1.01, 0.01):
+        part_size = int(fraction * len(idx))
+        part = correct_predictions[idx][:part_size]
+        accuracy = sum(part) / len(part)
+        accumulation.append((fraction, accuracy, 'random'))
+
+
+def print_acc_rejection():
     name = 'mnist'
 
     accumulation = []
@@ -45,6 +66,7 @@ def print_rocauc():
         methods = ['max_prob', 'mc_dropout', 'ht_dpp', 'ht_k_dpp']
         file_name = f'logs/classification/{name}_{i}/ue_max_prob.pickle'
         process_file(file_name, accumulation, methods, acquisition='max_prob')
+        add_random(accumulation, file_name)
 
         methods = ['mc_dropout', 'ht_dpp', 'ht_k_dpp']
         file_name = f'logs/classification/{name}_{i}/ue_var_ratio.pickle'
@@ -58,14 +80,13 @@ def print_rocauc():
         file_name = f'logs/classification/{name}_{i}/ue_ensemble.pickle'
         process_file(file_name, accumulation, methods, acquisition='')
 
-
-    df = pd.DataFrame(accumulation, columns=['value', 'method'])
+    df = pd.DataFrame(accumulation, columns=['Fraction', 'Accuracy', 'method'])
     plt.figure(figsize=(12, 8))
-    sns.boxplot(x='method', y='value', data=df)
-    plt.title(f"{name.upper()}, error detection ROC AUC")
+    sns.lineplot(x='Fraction', y='Accuracy', data=df, hue='method')
+    plt.title(f"{name.upper()}, accuracy by partly rejection")
     plt.xticks(rotation=20)
     plt.show()
 
 
 if __name__ == '__main__':
-    print_rocauc()
+    print_acc_rejection()
