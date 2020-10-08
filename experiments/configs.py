@@ -11,7 +11,7 @@ base_config = {
     'epochs': 50,
     'patience': 3,
     'batch_size': 128,
-    'repeats': 3,
+    'repeats': 5,
     'dropout_rate': 0.5,
     'nn_runs': 100
 }
