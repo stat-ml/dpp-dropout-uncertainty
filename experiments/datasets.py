@@ -30,7 +30,6 @@ def get_data(dataset_name):
         test_set = dataset_class(
             root='./data', train=False, download=True, transform=test_transform
         )
-        test_set, _ = train_test_split(test_set, train_size=2500)
     elif dataset_name == 'svhn':
         dataset_class = torchvision.datasets.SVHN
         train_set = dataset_class(
@@ -39,13 +38,14 @@ def get_data(dataset_name):
         test_set = dataset_class(
             root='./data', split='test', download=True, transform=test_transform
         )
-    elif dataset_name == 'lsun':
-        dataset_class = torchvision.datasets.LSUN
-    elif dataset_name == 'cifar100':
-        dataset_class = torchvision.datasets.CIFAR100
+    # elif dataset_name == 'lsun':
+    #     dataset_class = torchvision.datasets.LSUN
+    # elif dataset_name == 'cifar100':
+    #     dataset_class = torchvision.datasets.CIFAR100
     else:
         raise ValueError('Wrong dataset name')
 
+    test_set, _ = train_test_split(test_set, train_size=3000)
 
     train_loader = torch.utils.data.DataLoader(
         train_set, batch_size=batch_size, shuffle=True, num_workers=8

@@ -141,6 +141,7 @@ class MCDUEMasked:
 
             # Get mcdue estimation
             for nn_run in range(self.nn_runs):
+                print(nn_run)
                 prediction = self.net(
                     X_pool, dropout_rate=self.dropout_rate, dropout_mask=self.dropout_mask
                 ).to('cpu')

@@ -67,23 +67,19 @@ def train(config, loaders, logdir, checkpoint=None):
 
 
 def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val, config):
+    print('bench')
     model = model.double().cuda()
-    # runner = SupervisedRunner()
-    # logits = runner.predict_loader(loader=loaders['valid'], model=model)
-    # logits = torch.cat([l['logits'] for l in logits], dim=0).cpu()
+    x_val = x_val.double().cuda()
+    model.eval()
+
     with torch.no_grad():
-        logits = model(x_val.cuda()).detach().cpu().numpy()
+        logits = model(x_val).detach().cpu().numpy()
+    print(logits.shape)
     probabilities = softmax(logits, axis=-1)
+    print(probabilities.shape)
 
     acquisition = 'max_prob'
     estimators = ['max_prob', 'mc_dropout', 'ht_dpp', 'ht_k_dpp']
-    # if config['acquisition'] in ['bald', 'var_ratio']:
-    #     estimators = ['mc_dropout', 'ht_dpp', 'ht_k_dpp', 'cov_dpp', 'cov_k_dpp']
-    # elif config['acquisition'] == 'max_prob':
-    #     estimators = ['max_prob', 'mc_dropout', 'ht_dpp', 'ht_k_dpp', 'cov_dpp', 'cov_k_dpp']
-    # else:
-    #     raise ValueError
-
     print(estimators)
 
     uncertainties = {}
@@ -96,7 +92,6 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val, config):
         uncertainties[estimator_name] = ue
         lls[estimator_name] = ll
         mcds[estimator_name] = mcd
-
         # except Exception as e:
         #     print(e)
 
@@ -139,7 +134,9 @@ def calc_ue(model, datapoints, y_val, probabilities, estimator_type='max_prob', 
         estimator = build_estimator(
             'bald_masked', model, dropout_mask=estimator_type, num_classes=10,
             nn_runs=nn_runs, keep_runs=True, acquisition=acquisition_param)
-        ue = estimator.estimate(torch.DoubleTensor(datapoints).cuda())
+
+        print('created')
+        ue = estimator.estimate(datapoints)
         probs = softmax(estimator.last_mcd_runs(), axis=-1)
         probs = np.mean(probs, axis=-2)
         ll = log_likelihood(probs, y_val)
@@ -189,6 +186,5 @@ if __name__ == '__main__':
             y_val.append(y)
         x_val = torch.cat(x_val).double()
         y_val = torch.cat(y_val).numpy()
-
         bench_uncertainty(
             model, checkpoint, loaders, x_val, y_val, config)
