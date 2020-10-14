@@ -1,6 +1,6 @@
 import os
 import pickle
-from argparse import ArgumentParser
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -21,22 +21,24 @@ from datasets import get_data
 
 
 def parse_arguments():
-    parser = ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument('name')
-    parser.add_argument('--acquisition', '-a', type=str, default='bald')
+    parser.add_argument('--acquisition', '-a', type=str, default='max_prob')
+    parser.add_argument('--ood', default=False, action="store_true")
     args = parser.parse_args()
 
     config = {}
     config['name'] = args.name
     config['repeats'] = 5
     config['nn_runs'] = 100
+    config['ood'] = args.ood
     config['acquisition'] = args.acquisition
 
     return config
 
 
 def make_model():
-    model = ResNet34()
+    model = ResNet34(dropout_rate=0.15)
     return model
 
 
@@ -53,11 +55,11 @@ def train(config, loaders, logdir, checkpoint=None):
         optimizer = torch.optim.SGD(model.parameters(), lr=1e-1, weight_decay=5e-4, momentum=0.9)
         callbacks = [AccuracyCallback(num_classes=10), EarlyStoppingCallback(100, metric='accuracy01', minimize=False)]
 
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100, 160], gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[15, 30], gamma=0.1)
         model.train()
         runner.train(
             model=model, criterion=criterion, optimizer=optimizer, loaders=loaders,
-            logdir=logdir, num_epochs=200, verbose=True, scheduler=scheduler,
+            logdir=logdir, num_epochs=45, verbose=True, scheduler=scheduler,
             callbacks=callbacks
         )
 
@@ -79,7 +81,7 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val, config):
     print(probabilities.shape)
 
     acquisition = 'max_prob'
-    estimators = ['max_prob', 'mc_dropout', 'ht_dpp', 'ht_k_dpp']
+    estimators = ['max_prob', 'mc_dropout']
     print(estimators)
 
     uncertainties = {}
@@ -105,7 +107,9 @@ def bench_uncertainty(model, model_checkpoint, loaders, x_val, y_val, config):
         'lls': lls,
         'mcd': mcds
     }
-    with open(logdir / f"ue.pickle", 'wb') as f:
+    name = 'ue_ood' if config['ood'] else 'ue'
+
+    with open(logdir / f"{name}.pickle", 'wb') as f:
         pickle.dump(record, f)
 
     return probabilities, uncertainties, estimators
@@ -133,7 +137,7 @@ def calc_ue(model, datapoints, y_val, probabilities, estimator_type='max_prob', 
 
         estimator = build_estimator(
             'bald_masked', model, dropout_mask=estimator_type, num_classes=10,
-            nn_runs=nn_runs, keep_runs=True, acquisition=acquisition_param)
+            nn_runs=nn_runs, keep_runs=True, acquisition=acquisition_param, dropout_rate=0.15)
 
         print('created')
         ue = estimator.estimate(datapoints)
@@ -160,15 +164,24 @@ def misclassfication_detection(y_val, probabilities, uncertainties, estimators):
     return results
 
 
+def data_name(name, ood):
+    if ood:
+        return {"cifar": "svhn", "svhn": "cifar"}[name]
+    else:
+        return name
+
+
 if __name__ == '__main__':
     config = parse_arguments()
+    print(config)
+
     set_global_seed(42)
-    loaders = get_data(config['name'])
+    loaders = get_data(data_name(config['name'], config['ood']))
 
     rocaucs = []
     for i in range(config['repeats']):
         set_global_seed(i + 42)
-        logdir = Path(f"logs/classification_better/{config['name']}_{i}")
+        logdir = Path(f"logs/classification_lesser/{config['name']}_{i}")
         print(logdir)
 
         possible_checkpoint = logdir / 'checkpoints' / 'best.pth'

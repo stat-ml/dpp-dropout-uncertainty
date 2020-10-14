@@ -12,7 +12,7 @@ from alpaca.uncertainty_estimator.bald import bald, bald_normed
 from scipy.special import softmax
 
 name = 'svhn'
-metric = ['auc', 'rejection'][0]
+metric = ['auc', 'rejection'][1]
 
 
 def estimator_name(estimator):
@@ -30,68 +30,70 @@ def estimator_name(estimator):
     }[estimator]
 
 
-def process_file(file_name, accumulation):
+def process_file(file_name, ood_name, accumulation):
     with open(file_name, 'rb') as f:
         record = pickle.load(f)
 
+    with open(ood_name, 'rb') as f:
+        ood_record = pickle.load(f)
+
+    sub = 300
     probs = record['probabilities']
     predictions = np.argmax(probs, axis=-1)
-    errors = record['y_val'] != np.array(predictions)
+    errors = (record['y_val'] != np.array(predictions))[:sub]
+    ood_errors = np.ones(ood_record['mcd']['max_prob'].shape[0])[:sub]
+    errors = np.concatenate((errors, ood_errors))
+
 
     mcd = record['mcd']
+    ood_mcd = ood_record['mcd']
+
+    import ipdb; ipdb.set_trace()
+
+    start = 0.2
+    ue = np.concatenate((
+        record['uncertainties']['max_prob'][:sub],
+        ood_record['uncertainties']['max_prob'][:sub]
+    ))
+
+    idx = np.argsort(ue)
+    for fraction in np.arange(start, 1.01, 0.003):
+        part_size = int(fraction * len(idx))
+        part = errors[idx][:part_size]
+        accuracy = 1 - sum(part) / len(part)
+        accumulation.append((fraction, accuracy, 'max_prob'))
 
 
-    start = 0.8
-    ue = record['uncertainties']['max_prob']
-    if metric == 'auc':
-        uq = roc_auc_score(errors, ue)
-        accumulation.append((uq, "max_prob"))
-    else:
-        idx = np.argsort(ue)
-        for fraction in np.arange(start, 1.01, 0.01):
-            part_size = int(fraction * len(idx))
-            part = errors[idx][:part_size]
-            accuracy = 1 - sum(part) / len(part)
-            accumulation.append((fraction, accuracy, 'max_prob'))
-
-
-    methods = ['mc_dropout']
+    methods = ['mc_dropout', 'ht_dpp', 'ht_k_dpp']
     # for acquisition in ['bald', 'var_ratio', 'max_prob', 'mp_variation']:
-    for acquisition in ['bald', 'max_prob', 'mp_variation']:
+    for acquisition in ['bald', 'mp_variation']:
         for method in methods:
-            if method == 'max_prob':
-                ue = record['uncertainties'][method]
-            else:
-                ue = aquisition(mcd[method], acquisition)
+            ue = np.concatenate((
+                aquisition(mcd[method], acquisition)[:sub],
+                aquisition(ood_mcd[method], acquisition)[:sub]
+            ))
 
-            if metric == 'auc':
-                uq = roc_auc_score(errors, ue)
-                accumulation.append((uq, f"{method}_{acquisition}"))
-            else:
-                idx = np.argsort(ue)
-                for fraction in np.arange(start, 1.01, 0.01):
-                    part_size = int(fraction * len(idx))
-                    part = errors[idx][:part_size]
-                    accuracy = 1 - sum(part) / len(part)
-                    accumulation.append((fraction, accuracy, f"{method}_{acquisition}"))
+            idx = np.argsort(ue)
+            for fraction in np.arange(start, 1.01, 0.003):
+                part_size = int(fraction * len(idx))
+                part = errors[idx][:part_size]
+                accuracy = 1 - sum(part) / len(part)
+                accumulation.append((fraction, accuracy, f"{method}_{acquisition}"))
 
 
 def print_rocauc():
     accumulation = []
-    for i in range(1):
-        file_name = f'logs/classification_lesser/{name}_{i}/ue.pickle'
-        process_file(file_name, accumulation)
 
-    if metric == 'auc':
-        df = pd.DataFrame(accumulation, columns=['value', 'method'])
-        plt.figure(figsize=(14, 8))
-        sns.boxplot(x='method', y='value', data=df)
-        plt.title(f"{name.upper()}, error detection ROC AUC")
-    else:
-        df = pd.DataFrame(accumulation, columns=['Fraction', 'Accuracy', 'method'])
-        plt.figure(figsize=(12, 8))
-        sns.lineplot(x='Fraction', y='Accuracy', data=df, hue='method')
-        plt.title(f"{name.upper()}, accuracy by partly rejection")
+    for i in range(5):
+        file_name = f'logs/classification_better/{name}_{i}/ue.pickle'
+        ood_name = f'logs/classification_better/{name}_{i}/ue_ood.pickle'
+        process_file(file_name, ood_name, accumulation)
+
+
+    df = pd.DataFrame(accumulation, columns=['Fraction', 'Accuracy', 'method'])
+    plt.figure(figsize=(12, 8))
+    sns.lineplot(x='Fraction', y='Accuracy', data=df, hue='method')
+    plt.title(f"{name.upper()}, accuracy by partly rejection, 50% OOD")
     plt.xticks(rotation=20)
     plt.show()
 
@@ -109,13 +111,10 @@ def aquisition(mcd_runs, method):
         ue = np.mean(np.std(probabilities, axis=-2), axis=-1)
         return ue
     elif method == 'bald':
-        print('bald')
         return bald(mcd_runs)
     elif method == 'bald_normed':
-        print('normed bald')
         return bald_normed(mcd_runs)
     elif method == 'max_prob':
-        n = len(mcd_runs)
         probs = softmax(mcd_runs, axis=-1)
         mean_probs = np.mean(probs, axis=1)
         max_probs = np.max(mean_probs, -1)
