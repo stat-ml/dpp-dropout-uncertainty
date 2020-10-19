@@ -12,7 +12,7 @@ from alpaca.uncertainty_estimator.bald import bald, bald_normed
 from scipy.special import softmax
 
 name = 'svhn'
-metric = ['auc', 'rejection'][0]
+metric = ['auc', 'rejection'][1]
 
 
 def estimator_name(estimator):
