@@ -229,6 +229,7 @@ class ResNetDropblock(nn.Module):
         out = self.layer4(out)
         out = self._cached_drop(out, self.drop_4, dropout_mask)
         out = out.view(out.size(0), -1)
+        self.embedding = out
 
         out = self.linear(out)
         return out
@@ -296,6 +297,7 @@ class ResNetDropchannel(nn.Module):
         out = self.layer4(out)
         out = self._cached_drop(out, self.drop_4, dropout_mask)
         out = out.view(out.size(0), -1)
+        self.embedding = out
 
         out = self.linear(out)
         return out
@@ -402,6 +404,8 @@ class ResNetDroplayer(nn.Module):
         out = self.layer4(out)
         out = self._cached_drop(out, self.drop_4, dropout_mask)
         out = out.view(out.size(0), -1)
+
+        self.embedding = out
 
         out = self.linear(out)
         return out
