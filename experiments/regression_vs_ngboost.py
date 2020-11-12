@@ -1,5 +1,8 @@
+from os import path
 from argparse import ArgumentParser
 import random
+from pathlib import Path
+import pickle
 
 from alpaca.utils.datasets.builder import build_dataset
 import torch
@@ -21,26 +24,46 @@ def manual_seed(seed):
 
 lengthscale = 1e-2
 T = 10000
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+save_dir = Path('data/regression_3')
 
 
-def main(name, repeats):
+def select_params(x, y, N, batch_size, name):
+    file_name = save_dir/f"{name}_params.pickle"
+    if path.exists(file_name):
+        with open(file_name, 'rb') as f:
+            params = pickle.load(f)
+        best_tau = params['tau']
+        best_dropout = params['dropout']
+    else:
+        x_train, y_train, x_test, y_test, y_scaler = split_and_scale(x, y)
+        results = []
+        for local_tau in np.logspace(-4, 3, 29):
+            for local_dropout in [0.05]:
+                model = build_and_train(
+                    x_train, y_train, 50, local_tau, local_dropout, N, batch_size, None, name
+                )
+                error, ll = rmse_nll(model, 1, x_test, y_test, y_scaler, dropout=False, tau=local_tau)
+                results.append((ll, error, (local_tau, local_dropout)))
+                print(results[-1])
+
+        best_tau, best_dropout = sorted(results, key=lambda p: p[0])[-1][-1]
+        print(best_tau, best_dropout)
+        with open(file_name, 'wb') as f:
+            params = {'tau': best_tau, 'dropout': best_dropout}
+            pickle.dump(params, f)
+    return best_tau, best_dropout
+
+
+def main(name, repeats, batch_size):
     manual_seed(42)
     dataset = build_dataset(name, val_split=0)
     x, y = dataset.dataset('train')
     N = x.shape[0] * 0.9  # train size
 
     #%%
-    x_train, y_train, x_test, y_test, y_scaler = split_and_scale(x, y)
-    results = []
-    for local_tau in np.logspace(-5, 1, 25):
-        for local_dropout in [0.05]:
-            model = build_and_train(x_train, y_train, 50, local_tau, local_dropout, N)
-            error, ll = rmse_nll(model, 1, x_test, y_test, y_scaler, dropout=False, tau=local_tau)
-            results.append((ll, error, (local_tau, local_dropout)))
-
-    best_tau, best_dropout = sorted(results, key=lambda p: p[0])[-1][-1]
-    print(results)
-    print(best_tau, best_dropout)
+    # best_tau, best_dropout = 0.01, 0.05
+    best_tau, best_dropout = select_params(x, y, N, batch_size, name)
 
     #%%
     vanilla_rmse = []
@@ -51,17 +74,14 @@ def main(name, repeats):
     for i in range(repeats):
         print(i)
         x_train, y_train, x_test, y_test, y_scaler = split_and_scale(x, y)
-        model = build_and_train(x_train, y_train, 400, best_tau, best_dropout, N)
+        model = build_and_train(
+            x_train, y_train, 400, best_tau, best_dropout, N, batch_size, split_num=i, name=name
+        )
 
-        model.eval()
-        with torch.no_grad():
-            test_loss = rmse(
-                y_scaler.inverse_transform(y_test),
-                y_scaler.inverse_transform(model(torch.Tensor(x_test)).numpy())
-            )
         error, ll = rmse_nll(model, 1, x_test, y_test, y_scaler, tau=best_tau, dropout=False)
-        vanilla_rmse.append(test_loss)
+        vanilla_rmse.append(error)
         vanilla_ll.append(ll)
+
         error, ll = rmse_nll(model, T, x_test, y_test, y_scaler, tau=best_tau, dropout=True)
         mc_rmse.append(error)
         mc_ll.append(ll)
@@ -95,7 +115,7 @@ class Network(nn.Module):
         x = self.fc3(x)
         return x
 
-def loader(x_array, y_array, batch_size=32):
+def loader(x_array, y_array, batch_size):
     dataset = TensorDataset(torch.Tensor(x_array), torch.Tensor(y_array))
     return DataLoader(dataset, batch_size=batch_size)
 
@@ -104,18 +124,24 @@ def rmse(values, predictions):
 
 
 def rmse_nll(model, T, x_test, y_test, y_scaler, tau, dropout=True):
-    y_test_unscaled =  y_scaler.inverse_transform(y_test)
+    y_test_unscaled = y_scaler.inverse_transform(y_test)
     if dropout:
         model.train()
     else:
         model.eval()
 
     with torch.no_grad():
-        y_hat = np.array([y_scaler.inverse_transform(model(torch.Tensor(x_test)).numpy()) for _ in range(T)])
+        y_hat = np.array([
+            y_scaler.inverse_transform(
+                model(torch.Tensor(x_test).to(device)).cpu().numpy()
+            )
+            for _ in range(T)
+        ])
     y_pred = np.mean(y_hat, axis=0)
     ll = np.mean((logsumexp(-0.5 * tau * (y_test_unscaled[None] - y_hat)**2., 0) - np.log(T)
             - 0.5*np.log(2*np.pi) + 0.5*np.log(tau)))
     return rmse(y_test_unscaled, y_pred), ll
+
 
 def split_and_scale(x, y):
     # Load dat
@@ -134,33 +160,46 @@ def split_and_scale(x, y):
     return x_train, y_train, x_test, y_test, y_scaler
 
 
-def build_and_train(x_train, y_train, epochs, tau, dropout_value, N):
+def build_and_train(x_train, y_train, epochs, tau, dropout_value, N, batch_size, split_num, name):
+    if split_num is None:
+        file_name = None
+    else:
+        file_name = save_dir / f"{name}_{split_num}.pt"
+
     reg = lengthscale**2 * (1 - dropout_value) / (2. * N * tau)
-    train_loader = loader(x_train, y_train)
+    train_loader = loader(x_train, y_train, batch_size)
 
-    model = Network(x_train.shape[1], dropout_value)
-    model.train()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=reg)
-    criterion = nn.MSELoss()
-    train_losses = []
+    model = Network(x_train.shape[1], dropout_value).to(device)
+    if file_name and path.exists(file_name):
+        model.load_state_dict(torch.load(file_name))
+        model.eval()
+    else:
+        model.train()
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=reg)
+        criterion = nn.MSELoss()
+        train_losses = []
 
-    for epoch in range(epochs):
-        losses = []
-        for x_batch, y_batch in train_loader:
-            preds = model(x_batch)
-            optimizer.zero_grad()
-            loss = criterion(y_batch, preds)
-            loss.backward()
-            optimizer.step()
-            losses.append(loss.item())
-        if epoch % 10 == 0:
-            train_losses.append(np.mean(losses))
+        for epoch in range(epochs):
+            losses = []
+            for x_batch, y_batch in train_loader:
+                preds = model(x_batch.to(device))
+                optimizer.zero_grad()
+                loss = criterion(y_batch.to(device), preds)
+                loss.backward()
+                optimizer.step()
+                losses.append(loss.item())
+            if epoch % 10 == 0:
+                train_losses.append(np.mean(losses))
+        if file_name:
+            torch.save(model.state_dict(), file_name)
     return model
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--name', type=str)
     parser.add_argument('--repeats', type=int, default=20)
+    parser.add_argument('--batch-size', type=int, default=32)
     args = parser.parse_args()
 
-    main(args.name, args.repeats)
+    main(args.name, args.repeats, args.batch_size)
