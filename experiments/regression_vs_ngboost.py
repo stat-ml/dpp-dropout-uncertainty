@@ -15,12 +15,18 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from scipy.special import logsumexp
 
+from alpaca.utils.ue_metrics import uq_ll
+from alpaca.ue.masks import BasicBernoulliMask, DPPMask
+import alpaca.nn as ann
+from alpaca.utils.model_builder import uncertainty_mode, inference_mode
+
 
 def manual_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     random.seed(seed)
     np.random.seed(seed)
+
 
 lengthscale = 1e-2
 T = 10000
@@ -86,8 +92,10 @@ def main(name, repeats, batch_size):
         mc_rmse.append(error)
         mc_ll.append(ll)
 
+    print('vanilla')
     print(np.mean(vanilla_rmse), np.std(vanilla_rmse))
     print(np.mean(vanilla_ll), np.std(vanilla_ll))
+    print('mc')
     print(np.mean(mc_rmse), np.std(mc_rmse))
     print(np.mean(mc_ll), np.std(mc_ll))
 
@@ -99,10 +107,15 @@ def main(name, repeats, batch_size):
 class Network(nn.Module):
     def __init__(self, input_size, dropout_value):
         super().__init__()
+        # mask_class = DPPMask
+        # mask_class = BasicBernoulliMask
+        # self.dropout_0 = ann.Dropout(dropout_rate=dropout_value, dropout_mask=mask_class())
         self.dropout_0 = nn.Dropout(dropout_value)
         self.fc1 = nn.Linear(input_size, 50)
         self.dropout_1 = nn.Dropout(dropout_value)
+        # self.dropout_1 = ann.Dropout(dropout_rate=dropout_value, dropout_mask=mask_class())
         self.fc2 = nn.Linear(50, 50)
+        # self.dropout_2 = ann.Dropout(dropout_rate=dropout_value, dropout_mask=mask_class())
         self.dropout_2 = nn.Dropout(dropout_value)
         self.fc3 = nn.Linear(50, 1)
 
@@ -115,9 +128,11 @@ class Network(nn.Module):
         x = self.fc3(x)
         return x
 
+
 def loader(x_array, y_array, batch_size):
     dataset = TensorDataset(torch.Tensor(x_array), torch.Tensor(y_array))
     return DataLoader(dataset, batch_size=batch_size)
+
 
 def rmse(values, predictions):
     return np.sqrt(np.mean(np.square(values - predictions)))
@@ -125,21 +140,31 @@ def rmse(values, predictions):
 
 def rmse_nll(model, T, x_test, y_test, y_scaler, tau, dropout=True):
     y_test_unscaled = y_scaler.inverse_transform(y_test)
+    model.eval()
     if dropout:
-        model.train()
+        uncertainty_mode(model)
+        # model.dropout_0.dropout_mask.reset()
+        # model.dropout_1.dropout_mask.reset()
+        # model.dropout_2.dropout_mask.reset()
+        # model.train()
     else:
-        model.eval()
+        inference_mode(model)
+        # model.eval()
 
     with torch.no_grad():
         y_hat = np.array([
             y_scaler.inverse_transform(
-                model(torch.Tensor(x_test).to(device)).cpu().numpy()
+                model(torch.Tensor(x_test).to(device).double()).cpu().numpy()
             )
             for _ in range(T)
         ])
+
     y_pred = np.mean(y_hat, axis=0)
-    ll = np.mean((logsumexp(-0.5 * tau * (y_test_unscaled[None] - y_hat)**2., 0) - np.log(T)
-            - 0.5*np.log(2*np.pi) + 0.5*np.log(tau)))
+    errors = np.abs(y_pred - y_test_unscaled)
+    ue = np.std(y_hat, axis=0) + 1/tau
+    ll = uq_ll(errors, ue)
+    # ll = np.mean((logsumexp(-0.5 * tau * (y_test_unscaled[None] - y_hat)**2., 0) - np.log(T)
+    #         - 0.5*np.log(2*np.pi) + 0.5*np.log(tau)))
     return rmse(y_test_unscaled, y_pred), ll
 
 
@@ -169,7 +194,7 @@ def build_and_train(x_train, y_train, epochs, tau, dropout_value, N, batch_size,
     reg = lengthscale**2 * (1 - dropout_value) / (2. * N * tau)
     train_loader = loader(x_train, y_train, batch_size)
 
-    model = Network(x_train.shape[1], dropout_value).to(device)
+    model = Network(x_train.shape[1], dropout_value).to(device).double()
     if file_name and path.exists(file_name):
         model.load_state_dict(torch.load(file_name))
         model.eval()
@@ -182,9 +207,9 @@ def build_and_train(x_train, y_train, epochs, tau, dropout_value, N, batch_size,
         for epoch in range(epochs):
             losses = []
             for x_batch, y_batch in train_loader:
-                preds = model(x_batch.to(device))
+                preds = model(x_batch.to(device).double())
                 optimizer.zero_grad()
-                loss = criterion(y_batch.to(device), preds)
+                loss = criterion(y_batch.to(device).double(), preds)
                 loss.backward()
                 optimizer.step()
                 losses.append(loss.item())
