@@ -164,8 +164,6 @@ def rmse_nll(model, T, x_test, y_test, y_scaler, tau, dropout=True):
 def split_and_scale(x, y):
     # Load dat
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1)
-    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.01)
-
     # Scaler
     scaler = StandardScaler()
     x_train = scaler.fit_transform(x_train)
