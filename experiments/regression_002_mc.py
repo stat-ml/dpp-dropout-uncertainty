@@ -15,10 +15,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from scipy.special import logsumexp
 
-from alpaca.utils.ue_metrics import uq_ll
 from alpaca.ue.masks import BasicBernoulliMask, DPPMask
 import alpaca.nn as ann
 from alpaca.utils.model_builder import uncertainty_mode, inference_mode
+
+from utils.metrics import uq_ll
 
 
 def manual_seed(seed):
@@ -43,8 +44,7 @@ def main(name, repeats, batch_size, sampler):
     N = x.shape[0] * 0.9  # train size
 
     #%%
-    # best_tau, best_dropout = 0.01, 0.05
-    best_tau, best_dropout = select_params(x, y, N, batch_size, name, sampler)
+    best_last, best_input, best_tau, best_dropout = select_params(x, y, N, batch_size, name, sampler)
 
     #%%
     vanilla_rmse = []
@@ -61,6 +61,8 @@ def main(name, repeats, batch_size, sampler):
             x_train,
             y_train,
             500,
+            best_last,
+            best_input,
             best_tau,
             best_dropout,
             N,
@@ -91,7 +93,7 @@ def main(name, repeats, batch_size, sampler):
 
 
 class Network(nn.Module):
-    def __init__(self, input_size, dropout_value, sampler):
+    def __init__(self, input_size, dropout_value, sampler, last_layer, input_layer):
         super().__init__()
         if sampler == 'mc':
             mask_class = DPPMask
@@ -99,6 +101,8 @@ class Network(nn.Module):
             mask_class = BasicBernoulliMask
 
         base_size = 64
+        self.last_layer = last_layer
+        self.input_layer = input_layer
 
         self.dropout_1 = ann.Dropout(dropout_rate=dropout_value, dropout_mask=mask_class())
         self.fc1 = nn.Linear(input_size, base_size)
@@ -113,13 +117,16 @@ class Network(nn.Module):
         self.fc4 = nn.Linear(2*base_size, 1)
 
     def forward(self, x):
-        x = self.dropout_1(x)
+        if self.input_layer:
+            x = self.dropout_1(x)
         x = F.relu(self.fc1(x))
 
-        x = self.dropout_2(x)
+        if not self.last_layer:
+            x = self.dropout_2(x)
         x = F.relu(self.fc2(x))
 
-        x = self.dropout_3(x)
+        if not self.last_layer:
+            x = self.dropout_3(x)
         x = F.relu(self.fc3(x))
 
         x = self.dropout_4(x)
@@ -155,6 +162,10 @@ def rmse_nll(model, T, x_test, y_test, y_scaler, tau, dropout=True):
     y_pred = np.mean(y_hat, axis=0)
     errors = np.abs(y_pred - y_test_unscaled)
     ue = np.std(y_hat, axis=0) + 1/tau
+
+    errors *= y_scaler.scale_
+    ue *= y_scaler.scale_
+
     ll = uq_ll(errors, ue)
     # ll = np.mean((logsumexp(-0.5 * tau * (y_test_unscaled[None] - y_hat)**2., 0) - np.log(T)
     #         - 0.5*np.log(2*np.pi) + 0.5*np.log(tau)))
@@ -176,7 +187,10 @@ def split_and_scale(x, y):
     return x_train, y_train, x_test, y_test, y_scaler
 
 
-def build_and_train(x_train, y_train, epochs, tau, dropout_value, N, batch_size, split_num, name, sampler):
+def build_and_train(
+        x_train, y_train, epochs,
+        last_layer, input_layer, tau, dropout_value,
+        N, batch_size, split_num, name, sampler):
     if split_num is None:
         file_name = None
     else:
@@ -185,7 +199,7 @@ def build_and_train(x_train, y_train, epochs, tau, dropout_value, N, batch_size,
     reg = lengthscale**2 * (1 - dropout_value) / (2. * N * tau)
     train_loader = loader(x_train, y_train, batch_size)
 
-    model = Network(x_train.shape[1], dropout_value, sampler).to(device).double()
+    model = Network(x_train.shape[1], dropout_value, sampler, last_layer, input_layer).to(device).double()
     if file_name and path.exists(file_name):
         model.load_state_dict(torch.load(file_name))
         model.eval()
@@ -207,8 +221,7 @@ def build_and_train(x_train, y_train, epochs, tau, dropout_value, N, batch_size,
             if epoch % 10 == 0:
                 train_losses.append(np.mean(losses))
         if file_name:
-            pass
-            # torch.save(model.state_dict(), file_name)
+            torch.save(model.state_dict(), file_name)
     return model
 
 
@@ -218,26 +231,37 @@ def select_params(x, y, N, batch_size, name, sampler):
     if path.exists(file_name):
         with open(file_name, 'rb') as f:
             params = pickle.load(f)
+        best_last = params['last_layer']
+        best_input = params['input_layer']
         best_tau = params['tau']
         best_dropout = params['dropout']
     else:
         x_train, y_train, x_test, y_test, y_scaler = split_and_scale(x, y)
         results = []
-        for local_tau in np.logspace(-4, 2, 14):
-            for local_dropout in [0.05, 0.2, 0.5]:
-                model = build_and_train(
-                    x_train, y_train, 50, local_tau, local_dropout, N, batch_size, None, name, sampler
-                )
-                error, ll = rmse_nll(model, 1, x_test, y_test, y_scaler, dropout=False, tau=local_tau)
-                results.append((ll, error, (local_tau, local_dropout)))
-                print(results[-1])
+        for local_last in [True, False]:
+            for local_input in [True, False]:
+                for local_tau in np.logspace(-4, 2, 14):
+                    for local_dropout in [0.05, 0.2, 0.5]:
+                        model = build_and_train(
+                            x_train, y_train, 50,
+                            local_last, local_input, local_tau, local_dropout,
+                            N, batch_size, None, name, sampler
+                        )
+                        error, ll = rmse_nll(model, 1, x_test, y_test, y_scaler, dropout=False, tau=local_tau)
+                        results.append((ll, error, (local_last, local_input, local_tau, local_dropout)))
+                        print(results[-1])
 
-        best_tau, best_dropout = sorted(results, key=lambda p: p[0])[-1][-1]
-        print(best_tau, best_dropout)
-        # with open(file_name, 'wb') as f:
-        #     params = {'tau': best_tau, 'dropout': best_dropout}
-            # pickle.dump(params, f)
-    return best_tau, best_dropout
+        best_last, best_input, best_tau, best_dropout = sorted(results, key=lambda p: p[0])[-1][-1]
+        print(best_last, best_input, best_tau, best_dropout)
+        with open(file_name, 'wb') as f:
+            params = {
+                'tau': best_tau,
+                'dropout': best_dropout,
+                'last_layer': best_last,
+                'input_layer': best_input
+            }
+            pickle.dump(params, f)
+    return best_last, best_input, best_tau, best_dropout
 
 
 if __name__ == '__main__':
