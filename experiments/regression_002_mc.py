@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from scipy.special import logsumexp
 
 from alpaca.ue.masks import BasicBernoulliMask, DPPMask
 import alpaca.nn as ann
@@ -83,7 +82,7 @@ def main(name, repeats, batch_size, sampler):
     print('vanilla')
     print(np.mean(vanilla_rmse), np.std(vanilla_rmse))
     print(np.mean(vanilla_ll), np.std(vanilla_ll))
-    print('mc')
+    print(sampler)
     print(np.mean(mc_rmse), np.std(mc_rmse))
     print(np.mean(mc_ll), np.std(mc_ll))
 
@@ -96,9 +95,9 @@ class Network(nn.Module):
     def __init__(self, input_size, dropout_value, sampler, last_layer, input_layer):
         super().__init__()
         if sampler == 'mc':
-            mask_class = DPPMask
-        else:
             mask_class = BasicBernoulliMask
+        else:
+            mask_class = DPPMask
 
         base_size = 64
         self.last_layer = last_layer
@@ -161,14 +160,9 @@ def rmse_nll(model, T, x_test, y_test, y_scaler, tau, dropout=True):
 
     y_pred = np.mean(y_hat, axis=0)
     errors = np.abs(y_pred - y_test_unscaled)
-    ue = np.std(y_hat, axis=0) + 1/tau
-
-    errors *= y_scaler.scale_
-    ue *= y_scaler.scale_
+    ue = np.std(y_hat, axis=0) + (1/tau)*y_scaler.scale_
 
     ll = uq_ll(errors, ue)
-    # ll = np.mean((logsumexp(-0.5 * tau * (y_test_unscaled[None] - y_hat)**2., 0) - np.log(T)
-    #         - 0.5*np.log(2*np.pi) + 0.5*np.log(tau)))
     return rmse(y_test_unscaled, y_pred), ll
 
 
@@ -238,6 +232,7 @@ def select_params(x, y, N, batch_size, name, sampler):
     else:
         x_train, y_train, x_test, y_test, y_scaler = split_and_scale(x, y)
         results = []
+
         for local_last in [True, False]:
             for local_input in [True, False]:
                 for local_tau in np.logspace(-4, 2, 14):
@@ -247,7 +242,7 @@ def select_params(x, y, N, batch_size, name, sampler):
                             local_last, local_input, local_tau, local_dropout,
                             N, batch_size, None, name, sampler
                         )
-                        error, ll = rmse_nll(model, 1, x_test, y_test, y_scaler, dropout=False, tau=local_tau)
+                        error, ll = rmse_nll(model, T, x_test, y_test, y_scaler, dropout=True, tau=local_tau)
                         results.append((ll, error, (local_last, local_input, local_tau, local_dropout)))
                         print(results[-1])
 

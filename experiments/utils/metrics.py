@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.special import logsumexp
 
 
 def uq_ll(errors, uncertainty):
@@ -13,3 +14,10 @@ def uq_ll(errors, uncertainty):
     variance = np.square(uncertainty)
     lls = -1/2 * (np.log(variance) + np.square(errors)/variance + np.log(np.pi))
     return np.mean(lls)
+
+
+def tau_ll(tau, y, y_hat, T):
+    ll = np.mean(
+        logsumexp(-0.5 * tau * (y[None] - y_hat)**2., 0) - np.log(T) - 0.5*np.log(2*np.pi) + 0.5*np.log(tau)
+    )
+    return ll
