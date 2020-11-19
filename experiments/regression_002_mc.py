@@ -29,7 +29,7 @@ def manual_seed(seed):
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-save_dir = Path('data/regression_4')
+save_dir = Path('data/regression_5')
 
 ### params
 lengthscale = 1e-2
@@ -37,6 +37,7 @@ T = 10000
 
 
 def main(name, repeats, batch_size, sampler):
+    print(name)
     manual_seed(42)
     dataset = build_dataset(name, val_split=0)
     x, y = dataset.dataset('train')
@@ -233,16 +234,16 @@ def select_params(x, y, N, batch_size, name, sampler):
         x_train, y_train, x_test, y_test, y_scaler = split_and_scale(x, y)
         results = []
 
-        for local_last in [True, False]:
-            for local_input in [True, False]:
+        for local_last in [False]:
+            for local_input in [True]:
                 for local_tau in np.logspace(-4, 2, 14):
                     for local_dropout in [0.05, 0.2, 0.5]:
                         model = build_and_train(
-                            x_train, y_train, 50,
+                            x_train, y_train, 40,
                             local_last, local_input, local_tau, local_dropout,
                             N, batch_size, None, name, sampler
                         )
-                        error, ll = rmse_nll(model, T, x_test, y_test, y_scaler, dropout=True, tau=local_tau)
+                        error, ll = rmse_nll(model, 200, x_test, y_test, y_scaler, dropout=True, tau=local_tau)
                         results.append((ll, error, (local_last, local_input, local_tau, local_dropout)))
                         print(results[-1])
 

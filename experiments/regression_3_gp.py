@@ -14,12 +14,14 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import r2_score, mean_squared_error as mse
 
 from alpaca.utils.datasets.builder import build_dataset
-from alpaca.utils.ue_metrics import uq_ll
 
-from regression_002_mc import manual_seed, split_and_scale
+from regression_002_mc import manual_seed, split_and_scale, uq_ll
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 save_dir = Path('data/regression_5')
+
+import warnings
+warnings.filterwarnings("ignore")
 
 
 def rmse_ll(true_y, prediction, uncertainty, y_scaler):
@@ -49,6 +51,7 @@ class ExactGPModel(gpytorch.models.ExactGP):
 
 
 def main(name, repeats):
+    print(name)
     #%%
     manual_seed(42)
     dataset = build_dataset(name, val_split=0)
@@ -62,7 +65,6 @@ def main(name, repeats):
         print(run, end=' ', flush=True)
         manual_seed(42 + run)
         x_train, y_train, x_test, y_test, y_scaler = split_and_scale(x, y)
-        x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
 
         # train gp
         x_train_ = torch.Tensor(x_train).cuda()
@@ -84,7 +86,7 @@ def main(name, repeats):
         # "Loss" for GPs - the marginal log likelihood
         mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
-        training_iter = 1_000
+        training_iter = 500
         for i in range(training_iter):
             # Zero gradients from previous iteration
             optimizer.zero_grad()
