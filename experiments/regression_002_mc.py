@@ -29,11 +29,11 @@ def manual_seed(seed):
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-save_dir = Path('data/regression_5')
+save_dir = Path('data/regression_6')
 
 ### params
 lengthscale = 1e-2
-T = 10000
+T = 1000
 
 
 def main(name, repeats, batch_size, sampler):
@@ -72,11 +72,11 @@ def main(name, repeats, batch_size, sampler):
             sampler=sampler
         )
 
-        error, ll = rmse_nll(model, 1, x_test, y_test, y_scaler, tau=best_tau, dropout=False)
+        error, ll = rmse_ll(model, 1, x_test, y_test, y_scaler, tau=best_tau, dropout=False)
         vanilla_rmse.append(error)
         vanilla_ll.append(ll)
 
-        error, ll = rmse_nll(model, T, x_test, y_test, y_scaler, tau=best_tau, dropout=True)
+        error, ll = rmse_ll(model, T, x_test, y_test, y_scaler, tau=best_tau, dropout=True)
         mc_rmse.append(error)
         mc_ll.append(ll)
 
@@ -143,7 +143,7 @@ def rmse(values, predictions):
     return np.sqrt(np.mean(np.square(values - predictions)))
 
 
-def rmse_nll(model, T, x_test, y_test, y_scaler, tau, dropout=True):
+def rmse_ll(model, T, x_test, y_test, y_scaler, tau, dropout=True):
     y_test_unscaled = y_scaler.inverse_transform(y_test)
     model.eval()
     if dropout:
@@ -194,7 +194,7 @@ def build_and_train(
     reg = lengthscale**2 * (1 - dropout_value) / (2. * N * tau)
     train_loader = loader(x_train, y_train, batch_size)
 
-    model = Network(x_train.shape[1], dropout_value, sampler, last_layer, input_layer).to(device).double()
+    model = Network(x_train.shape[1], dropout_value, sampler, last_layer, input_layer).to(device).to(precision(sampler))
     if file_name and path.exists(file_name):
         model.load_state_dict(torch.load(file_name))
         model.eval()
@@ -207,9 +207,9 @@ def build_and_train(
         for epoch in range(epochs):
             losses = []
             for x_batch, y_batch in train_loader:
-                preds = model(x_batch.to(device).double())
+                preds = model(x_batch.to(device).to(precision(sampler)))
                 optimizer.zero_grad()
-                loss = criterion(y_batch.to(device).double(), preds)
+                loss = criterion(y_batch.to(device).to(precision(sampler)), preds)
                 loss.backward()
                 optimizer.step()
                 losses.append(loss.item())
@@ -218,6 +218,14 @@ def build_and_train(
         if file_name:
             torch.save(model.state_dict(), file_name)
     return model
+
+
+
+def precision(sampler):
+    if sampler == 'dpp':
+        return torch.float64
+    else:
+        return torch.float32
 
 
 def select_params(x, y, N, batch_size, name, sampler):
@@ -243,7 +251,8 @@ def select_params(x, y, N, batch_size, name, sampler):
                             local_last, local_input, local_tau, local_dropout,
                             N, batch_size, None, name, sampler
                         )
-                        error, ll = rmse_nll(model, 200, x_test, y_test, y_scaler, dropout=True, tau=local_tau)
+                        model.to(precision(sampler))
+                        error, ll = rmse_ll(model, 200, x_test, y_test, y_scaler, dropout=True, tau=local_tau)
                         results.append((ll, error, (local_last, local_input, local_tau, local_dropout)))
                         print(results[-1])
 
