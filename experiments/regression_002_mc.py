@@ -29,7 +29,7 @@ def manual_seed(seed):
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-save_dir = Path('data/regression_6')
+save_dir = Path('data/regression_7')
 
 ### params
 lengthscale = 1e-2
