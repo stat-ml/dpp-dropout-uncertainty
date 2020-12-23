@@ -21,16 +21,18 @@ experiment_config = {
     'mnist': {
         'train_size': 500,
         'dropout_rate': 0.5,
-        'n_models': 20
+        # 'n_models': 10,
+        'n_models': 10,
+        'repeats': 3
     },
     'cifar': {
         'prepare_dataset': prepare_cifar,
         'model_class': StrongConv,
-        'n_models': 20,
+        'n_models': 10,
+        'repeats': 3
     },
     'imagenet': {
         'dropout_rate': 0.5,
-        'repeats': 1,
     }
 }
 
