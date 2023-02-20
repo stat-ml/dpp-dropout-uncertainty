@@ -8,14 +8,13 @@ Main code with implemented methods (DPP, k-DPP, leverages masks for dropout) are
 ### Motivation
 
 
-For regression tasks, it could be useful to know not just a prediction but also a confidence interval. It's hard to do it in the close form for deep learning, but to estimate, you can you so-called [ensembles](https://arxiv.org/abs/1612.01474) of several models. To avoid training and keeping several models, you could use[monte-carlo dropout](https://arxiv.org/abs/1506.02142) on inference.
+For regression tasks, it could be useful to know not just a prediction but also a confidence interval. It's hard to do it in the close form for deep learning, but to estimate, you can you so-called [ensembles](https://arxiv.org/abs/1612.01474) of several models. To avoid training and keeping several models, you could use [monte-carlo dropout](https://arxiv.org/abs/1506.02142) on inference.
 
 To use MC dropout, you need multiple forward passes; converging requires tens or even hundreds of forward passes.
 
 <p align="center">
 <img src="https://github.com/stat-ml/dpp-dropout-uncertainty/blob/master/figures/convergence.png?raw=true" width="350" >
 </p>
-
 
 We propose to force the diversity of forward passes by hiring determinantal point processes. See how it improves the log-likelihood metric across various UCI datasets for the different numbers of stochastic passes T = 10, 30, 100.
 
@@ -28,6 +27,7 @@ You can read full paper on [https://arxiv.org/abs/2003.03274](https://arxiv.org/
 
 For the citation, please use
 
+```bibtex
 @InProceedings{Fedyanin2021DropoutSB,
 author="Fedyanin, Kirill
 and Tsymbalov, Evgenii
@@ -39,8 +39,7 @@ publisher="Springer International Publishing",
 pages="125--137",
 isbn="978-3-031-15168-2"
 }
-
-
+```
 
 
 ## Install dependency
