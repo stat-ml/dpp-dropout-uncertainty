@@ -12,7 +12,9 @@ For regression tasks, it could be useful to know not just a prediction but also 
 
 To use MC dropout, you need multiple forward passes; converging requires tens or even hundreds of forward passes.
 
-<img src="file://figures/convergence.png" width="250">
+<p align="center">
+<img src="https://github.com/stat-ml/dpp-dropout-uncertainty/blob/master/figures/convergence.png?raw=true" width="350" >
+</p>
 
 
 We propose to force the diversity of forward passes by hiring determinantal point processes. See how it improves the log-likelihood metric across various UCI datasets for the different numbers of stochastic passes T = 10, 30, 100.
