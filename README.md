@@ -1,6 +1,6 @@
 # Uncertainty estimation via decorrelation and DPP
 Code for paper "Dropout Strikes Back: Improved Uncertainty
-Estimation via Diversity Sampling" by Evgenii Tsymbalov, Kirill Fedyanin, Maxim Panov
+Estimation via Diversity Sampling" by Kirill Fedyanin, Evgenii Tsymbalov, Maxim Panov published in [Recent Trends in Analysis of Images, Social Networks and Texts](https://link.springer.com/chapter/10.1007/978-3-031-15168-2_11) by Springer
 
 Main code with implemented methods (DPP, k-DPP, leverages masks for dropout) are in our [alpaca library](https://github.com/stat-ml/alpaca)
 
@@ -23,7 +23,7 @@ We propose to force the diversity of forward passes by hiring determinantal poin
 
 ### Paper
 
-You can read full paper on [https://arxiv.org/abs/2003.03274](https://arxiv.org/abs/2003.03274)
+You can read full paper on [https://link.springer.com/chapter/10.1007/978-3-031-15168-2_11)
 
 For the citation, please use
 
