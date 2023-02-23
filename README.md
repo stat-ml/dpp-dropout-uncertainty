@@ -23,7 +23,7 @@ We propose to force the diversity of forward passes by hiring determinantal poin
 
 ### Paper
 
-You can read full paper on [https://link.springer.com/chapter/10.1007/978-3-031-15168-2_11)
+You can read full paper here [https://link.springer.com/chapter/10.1007/978-3-031-15168-2_11](https://link.springer.com/chapter/10.1007/978-3-031-15168-2_11)
 
 For the citation, please use
 
